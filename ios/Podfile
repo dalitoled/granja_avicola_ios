@@ -5,7 +5,21 @@ source 'https://cdn.cocoapods.org/'
 target 'Runner' do
   use_frameworks!
   
-  # Podfile最小的配置，Firebase pods会被Flutter自动安装
+  # Firebase Core (REQUIRED - must come first)
+  pod 'FirebaseCore', '~> 11.0'
+  pod 'FirebaseAnalytics', '~> 11.0'
+  
+  # Firebase Auth
+  pod 'FirebaseAuth', '~> 11.0'
+  
+  # Firebase Firestore
+  pod 'FirebaseFirestore', '~> 11.0'
+  
+  # Firebase Crashlytics (optional)
+  pod 'FirebaseCrashlytics', '~> 11.0'
+  
+  # Other Flutter plugins (from pubspec)
+  pod 'Flutter', :path => '.'
 end
 
 post_install do |installer|
@@ -13,7 +27,6 @@ post_install do |installer|
     target.build_configurations.each do |config|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
       config.build_settings['ENABLE_BITCODE'] = 'NO'
-      config.build_settings['BUILD_LIBRARY_SEARCH_PATHS'] = '$(inherited) $(PROJECT_DIR)/Flutter/ephemeral/Flutter.xcframework'
     end
   end
 end

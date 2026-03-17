@@ -56,9 +56,11 @@ jobs:
         with:
           ruby-version: '3.2'
 
-      - name: Install CocoaPods dependencies
-        run: cd ios && pod install --repo-update
-        continue-on-error: true
+      - name: Install CocoaPods
+        run: |
+          cd ios
+          rm -f Podfile.lock
+          pod install --repo-update
 
       - name: Build iOS for simulator
         run: flutter build ios --simulator --no-codesign
