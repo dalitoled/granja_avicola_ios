@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "298545787603",
+    "project_id": "granjaavicola-3232a",
+    "storage_bucket": "granjaavicola-3232a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:298545787603:android:53e7336f3ef1ee87715a26",
+        "android_client_info": {
+          "package_name": "com.granjaavicola.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "298545787603-b0b0lg1g8sqf9hhdpsl6ua7mka9k8l2q.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBkMB2jjyvIebRLXSblGf3jtyNHEIRq-QA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "298545787603-b0b0lg1g8sqf9hhdpsl6ua7mka9k8l2q.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

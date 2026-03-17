@@ -1,0 +1,33 @@
+# Uncomment this line to define a global platform for your project
+platform :ios, '13.0'
+
+# Use local trunk repo instead of CDN
+source 'https://github.com/CocoaPods/Specs.git'
+
+target 'Runner' do
+  use_frameworks!
+  
+  # Firebase Core - Required
+  pod 'FirebaseCore', '~> 11.0'
+  
+  # Firebase Authentication
+  pod 'FirebaseAuth', '~> 11.0'
+  
+  # Firebase Firestore
+  pod 'FirebaseFirestore', '~> 11.0'
+  
+  # Firebase Crashlytics (optional, for crash reporting)
+  pod 'FirebaseCrashlytics', '~> 11.0'
+  
+end
+
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    target.build_configurations.each do |config|
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+      
+      # Disable bitcode (required for Firebase)
+      config.build_settings['ENABLE_BITCODE'] = 'NO'
+    end
+  end
+end
