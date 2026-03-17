@@ -1,15 +1,28 @@
-# Uncomment this line to define a global platform for your project
 platform :ios, '13.0'
 
-# Use CocoaPods CDN
+# Load the Flutter plugin helper
+def flutter_root
+  File.expand_path(File.join('..', 'Flutter'), __dir__)
+end
+
+eval_file = File.join(flutter_root, 'ephemeral', 'flutter_helper.rb')
+if File.exist?(eval_file)
+  eval(File.read(eval_file), binding)
+end
+
 source 'https://cdn.cocoapods.org/'
 
 target 'Runner' do
   use_frameworks!
   
-  # Firebase pods
-  pod 'Firebase', '~> 11.0'
-  
+  # Install Flutter and plugin pods
+  if respond_to?(:flutter_install_all_ios_pods)
+    flutter_install_all_ios_pods
+  else
+    pod 'FirebaseCore', :modular_headers => true
+    pod 'FirebaseAuth', :modular_headers => true
+    pod 'FirebaseFirestore', :modular_headers => true
+  end
 end
 
 post_install do |installer|
