@@ -17,9 +17,6 @@ target 'Runner' do
   
   # Firebase Crashlytics (optional)
   pod 'FirebaseCrashlytics', '~> 11.0'
-  
-  # Other Flutter plugins (from pubspec)
-  pod 'Flutter', :path => '.'
 end
 
 post_install do |installer|
