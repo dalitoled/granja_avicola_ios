@@ -1,6 +1,8 @@
 platform :ios, '13.0'
 
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
+ENV['CFLAGS'] = '-Wno-unused-command-line-argument'
+ENV['CXXFLAGS'] = '-Wno-unused-command-line-argument'
 
 project 'Runner', {
   'Debug' => :debug,
@@ -32,56 +34,60 @@ target 'Runner' do
 end
 
 post_install do |installer|
-  # Fix -G flag issue in ALL xcconfig files (gRPC/abseil)
+  # Fix -G flag in ALL files
   Dir.glob(File.join(installer.sandbox.root, '**/*.xcconfig')).each do |xcconfig_path|
-    xcconfig_content = File.read(xcconfig_path)
-    if xcconfig_content.include?('-G')
-      puts "Removing -G flag from: #{xcconfig_path}"
-      xcconfig_content.gsub!(/-G\s*\S*/, '')
-      File.open(xcconfig_path, 'w') { |f| f.write(xcconfig_content) }
+    content = File.read(xcconfig_path)
+    if content.include?('-G')
+      puts "Patching: #{xcconfig_path}"
+      content = content.gsub(/-G\s*\S*/, '')
+      File.write(xcconfig_path, content)
     end
   end
 
-  # Fix all targets including Pods
+  # Patch gRPC source files directly
+  Dir.glob(File.join(installer.sandbox.root, '**/gRPC-Core/**/*.cfg')).each do |cfg_path|
+    content = File.read(cfg_path)
+    if content.include?('-G')
+      puts "Patching cfg: #{cfg_path}"
+      content = content.gsub(/-G\s*\S*/, '')
+      File.write(cfg_path, content)
+    end
+  end
+
+  # Fix all targets
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
     
     target.build_configurations.each do |config|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
       config.build_settings['ENABLE_BITCODE'] = 'NO'
+      config.build_settings['GCC_WARN_INHIBIT_UNIVERSAL_WARNING'] = 'YES'
       
-      # Remove -G from ALL compiler/linker flags
+      # Remove -G from ALL compiler flags
       %w[OTHER_CFLAGS OTHER_CPLUSPLUSFLAGS OTHER_LDFLAGS OTHER_SWIFT_FLAGS 
          GCC_PREPROCESSOR_DEFINITIONS CLANG_CXX_FLAGS].each do |key|
         if config.build_settings[key]
-          config.build_settings[key] = config.build_settings[key].gsub(/(-G\s*\S*|-G)/, '').strip
+          config.build_settings[key] = config.build_settings[key].to_s.gsub(/-G\s*\S*/, '').gsub(/-G/, '').strip
         end
       end
       
-      # Fix for x86_64 simulator - EXCLUDED_ARCHS
+      # Fix for simulator
       config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'i386'
       
-      # Ensure proper linking for Firebase/gRPC
+      # Proper linking
       ldflags = config.build_settings['OTHER_LDFLAGS'] || ['$(inherited)']
-      ldflags = [ldflags] if ldflags.is_a?(String)
-      ldflags = ldflags.flatten.uniq
+      ldflags = [ldflags].flatten.uniq
       ldflags << '-ObjC' unless ldflags.include?('-ObjC')
       ldflags << '-lc++' unless ldflags.include?('-lc++')
       config.build_settings['OTHER_LDFLAGS'] = ldflags
     end
   end
   
-  # Fix Xcode 15+ compatibility at project level
+  # Project level fixes
   installer.pods_project.build_configurations.each do |config|
     config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
     config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'gnu++17'
     config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'i386'
-    
-    # Remove -G from project level too
-    %w[OTHER_CFLAGS OTHER_CPLUSPLUSFLAGS].each do |key|
-      if config.build_settings[key]
-        config.build_settings[key] = config.build_settings[key].gsub(/(-G\s*\S*|-G)/, '').strip
-      end
-    end
+    config.build_settings['GCC_WARN_INHIBIT_UNIVERSAL_WARNING'] = 'YES'
   end
 end
