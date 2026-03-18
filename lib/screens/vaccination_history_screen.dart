@@ -146,7 +146,7 @@ class _VaccinationHistoryScreenState extends State<VaccinationHistoryScreen> {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF2E7D32).withValues(alpha: 0.1),
+                    color: const Color(0xFF2E7D32).withOpacity( 0.1),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(

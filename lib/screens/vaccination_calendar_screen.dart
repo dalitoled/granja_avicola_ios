@@ -156,7 +156,7 @@ class _VaccinationCalendarScreenState extends State<VaccinationCalendarScreen> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.1),
+            color: color.withOpacity( 0.1),
             borderRadius: BorderRadius.circular(20),
           ),
           child: Row(
@@ -238,7 +238,7 @@ class _VaccinationCalendarScreenState extends State<VaccinationCalendarScreen> {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.1),
+                    color: statusColor.withOpacity( 0.1),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(

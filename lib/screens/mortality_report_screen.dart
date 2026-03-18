@@ -303,7 +303,7 @@ class _MortalityReportScreenState extends State<MortalityReportScreen> {
                         dotData: const FlDotData(show: true),
                         belowBarData: BarAreaData(
                           show: true,
-                          color: Colors.red.withValues(alpha: 0.2),
+                          color: Colors.red.withOpacity( 0.2),
                         ),
                       ),
                     ],

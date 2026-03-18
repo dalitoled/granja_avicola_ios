@@ -207,7 +207,7 @@ class _LotDetailScreenState extends State<LotDetailScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: statusColor.withValues(alpha: 0.2),
+                color: statusColor.withOpacity( 0.2),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(

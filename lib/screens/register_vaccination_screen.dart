@@ -279,7 +279,7 @@ class _RegisterVaccinationScreenState extends State<RegisterVaccinationScreen> {
               )
             else
               DropdownButtonFormField<HenLotModel>(
-                initialValue: _selectedLot,
+                value: _selectedLot,
                 isExpanded: true,
                 decoration: InputDecoration(
                   border: OutlineInputBorder(
@@ -375,7 +375,7 @@ class _RegisterVaccinationScreenState extends State<RegisterVaccinationScreen> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              initialValue: _selectedMethod,
+              value: _selectedMethod,
               decoration: InputDecoration(
                 labelText: 'Método',
                 prefixIcon: const Icon(Icons.list),

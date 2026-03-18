@@ -292,7 +292,7 @@ class _ProductionReportScreenState extends State<ProductionReportScreen> {
                         dotData: const FlDotData(show: true),
                         belowBarData: BarAreaData(
                           show: true,
-                          color: const Color(0xFFFF8C00).withValues(alpha: 0.2),
+                          color: const Color(0xFFFF8C00).withOpacity( 0.2),
                         ),
                       ),
                     ],

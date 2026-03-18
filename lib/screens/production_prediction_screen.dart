@@ -215,7 +215,7 @@ class _ProductionPredictionScreenState
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.1),
+                    color: color.withOpacity( 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(icon, color: color, size: 20),
@@ -395,8 +395,8 @@ class _ProductionPredictionScreenState
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                           colors: [
-                            const Color(0xFF2E7D32).withValues(alpha: 0.3),
-                            const Color(0xFF2E7D32).withValues(alpha: 0.0),
+                            const Color(0xFF2E7D32).withOpacity( 0.3),
+                            const Color(0xFF2E7D32).withOpacity( 0.0),
                           ],
                         ),
                       ),
@@ -450,7 +450,7 @@ class _ProductionPredictionScreenState
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: trendColor.withValues(alpha: 0.1),
+                color: trendColor.withOpacity( 0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(Icons.trending_up, color: trendColor, size: 28),

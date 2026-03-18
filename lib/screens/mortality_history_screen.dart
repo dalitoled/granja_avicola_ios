@@ -220,7 +220,7 @@ class _MortalityHistoryScreenState extends State<MortalityHistoryScreen> {
       padding: const EdgeInsets.all(12),
       margin: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: (color ?? Colors.grey).withValues(alpha: 0.1),
+        color: (color ?? Colors.grey).withOpacity( 0.1),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -322,7 +322,7 @@ class _MortalityHistoryScreenState extends State<MortalityHistoryScreen> {
         trailing: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: causeColor.withValues(alpha: 0.2),
+            color: causeColor.withOpacity( 0.2),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Text(

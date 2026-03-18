@@ -438,7 +438,7 @@ class _RegisterSaleScreenState extends State<RegisterSaleScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFF2E7D32).withValues(alpha: 0.1),
+                color: const Color(0xFF2E7D32).withOpacity( 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Column(
@@ -527,9 +527,9 @@ class _RegisterSaleScreenState extends State<RegisterSaleScreen> {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+        color: color.withOpacity( 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        border: Border.all(color: color.withOpacity( 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

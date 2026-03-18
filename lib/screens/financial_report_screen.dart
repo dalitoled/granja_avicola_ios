@@ -127,7 +127,7 @@ class _FinancialReportScreenState extends State<FinancialReportScreen> {
                 Text(
                   'Ganancia Neta',
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.9),
+                    color: Colors.white.withOpacity( 0.9),
                     fontSize: 14,
                   ),
                 ),

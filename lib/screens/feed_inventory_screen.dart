@@ -227,7 +227,7 @@ class _FeedInventoryScreenState extends State<FeedInventoryScreen> {
       padding: const EdgeInsets.all(12),
       margin: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+        color: color.withOpacity( 0.1),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -366,7 +366,7 @@ class _FeedInventoryScreenState extends State<FeedInventoryScreen> {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.1),
+                      color: statusColor.withOpacity( 0.1),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Row(

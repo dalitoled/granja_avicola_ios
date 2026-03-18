@@ -516,7 +516,7 @@ class _FeedConsumptionScreenState extends State<FeedConsumptionScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFF2E7D32).withValues(alpha: 0.1),
+                color: const Color(0xFF2E7D32).withOpacity( 0.1),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: const Color(0xFF2E7D32)),
               ),

@@ -267,7 +267,7 @@ class _FeedHistoryScreenState extends State<FeedHistoryScreen> {
             decoration: BoxDecoration(
               color: isHighlighted
                   ? const Color(0xFF2E7D32)
-                  : const Color(0xFF2E7D32).withValues(alpha: 0.1),
+                  : const Color(0xFF2E7D32).withOpacity( 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
@@ -483,7 +483,7 @@ class _EditFeedDialogState extends State<EditFeedDialog> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF2E7D32).withValues(alpha: 0.1),
+                  color: const Color(0xFF2E7D32).withOpacity( 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(

@@ -231,7 +231,7 @@ class _FarmAlertsScreenState extends State<FarmAlertsScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
+                  color: color.withOpacity( 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(icon, color: color, size: 28),
@@ -260,7 +260,7 @@ class _FarmAlertsScreenState extends State<FarmAlertsScreen> {
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: color.withValues(alpha: 0.1),
+                            color: color.withOpacity( 0.1),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
@@ -329,7 +329,7 @@ class _FarmAlertsScreenState extends State<FarmAlertsScreen> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.1),
+                    color: color.withOpacity( 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
@@ -358,7 +358,7 @@ class _FarmAlertsScreenState extends State<FarmAlertsScreen> {
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          color: color.withValues(alpha: 0.1),
+                          color: color.withOpacity( 0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(

@@ -407,7 +407,7 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF2E7D32).withValues(alpha: 0.1),
+                  color: const Color(0xFF2E7D32).withOpacity( 0.1),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
@@ -653,7 +653,7 @@ class _EditSaleDialogState extends State<EditSaleDialog> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFF2E7D32).withValues(alpha: 0.2),
+                color: const Color(0xFF2E7D32).withOpacity( 0.2),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(

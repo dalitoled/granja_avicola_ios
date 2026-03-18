@@ -194,7 +194,7 @@ class _FeedPurchaseHistoryScreenState extends State<FeedPurchaseHistoryScreen> {
       padding: const EdgeInsets.all(12),
       margin: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+        color: color.withOpacity( 0.1),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -269,7 +269,7 @@ class _FeedPurchaseHistoryScreenState extends State<FeedPurchaseHistoryScreen> {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFF8C00).withValues(alpha: 0.1),
+                      color: const Color(0xFFFF8C00).withOpacity( 0.1),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
@@ -684,7 +684,7 @@ class _EditPurchaseDialogState extends State<EditPurchaseDialog> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF2E7D32).withValues(alpha: 0.1),
+                  color: const Color(0xFF2E7D32).withOpacity( 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(

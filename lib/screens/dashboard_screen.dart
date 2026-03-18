@@ -679,7 +679,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [color, color.withValues(alpha: 0.8)],
+              colors: [color, color.withOpacity( 0.8)],
             ),
           ),
           child: Row(
@@ -810,9 +810,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       padding: const EdgeInsets.all(12),
       margin: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+        color: color.withOpacity( 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        border: Border.all(color: color.withOpacity( 0.3)),
       ),
       child: Column(
         children: [
@@ -853,7 +853,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [color, color.withValues(alpha: 0.7)],
+              colors: [color, color.withOpacity( 0.7)],
             ),
           ),
           child: Column(
@@ -911,7 +911,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.2),
+            color: Colors.white.withOpacity( 0.2),
             shape: BoxShape.circle,
           ),
           child: Icon(icon, color: color, size: 24),

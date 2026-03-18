@@ -270,7 +270,7 @@ class _ProductionEfficiencyScreenState
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFF8C00).withValues(alpha: 0.1),
+                  color: const Color(0xFFFF8C00).withOpacity( 0.1),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: const Color(0xFFFF8C00)),
                 ),
@@ -344,7 +344,7 @@ class _ProductionEfficiencyScreenState
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF8B4513).withValues(alpha: 0.1),
+                  color: const Color(0xFF8B4513).withOpacity( 0.1),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: const Color(0xFF8B4513)),
                 ),
@@ -507,7 +507,7 @@ class _ProductionEfficiencyScreenState
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
+                color: Colors.white.withOpacity( 0.2),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
@@ -529,7 +529,7 @@ class _ProductionEfficiencyScreenState
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.2),
+        color: Colors.white.withOpacity( 0.2),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -547,7 +547,7 @@ class _ProductionEfficiencyScreenState
             label,
             style: TextStyle(
               fontSize: 11,
-              color: Colors.white.withValues(alpha: 0.8),
+              color: Colors.white.withOpacity( 0.8),
             ),
           ),
         ],

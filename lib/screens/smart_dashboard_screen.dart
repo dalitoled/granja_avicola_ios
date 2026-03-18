@@ -198,7 +198,7 @@ class _SmartDashboardScreenState extends State<SmartDashboardScreen> {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
           gradient: LinearGradient(
-            colors: [color, color.withValues(alpha: 0.7)],
+            colors: [color, color.withOpacity( 0.7)],
           ),
         ),
         child: Row(
@@ -422,7 +422,7 @@ class _SmartDashboardScreenState extends State<SmartDashboardScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+        color: color.withOpacity( 0.1),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -519,7 +519,7 @@ class _SmartDashboardScreenState extends State<SmartDashboardScreen> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFF8B4513).withValues(alpha: 0.1),
+              color: const Color(0xFF8B4513).withOpacity( 0.1),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: const Color(0xFF8B4513)),
             ),

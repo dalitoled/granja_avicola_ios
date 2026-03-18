@@ -202,7 +202,7 @@ class _ExpenseSummaryScreenState extends State<ExpenseSummaryScreen> {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [color, color.withValues(alpha: 0.7)],
+            colors: [color, color.withOpacity( 0.7)],
           ),
         ),
         child: Column(
@@ -293,7 +293,7 @@ class _ExpenseSummaryScreenState extends State<ExpenseSummaryScreen> {
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: categoryColor.withValues(alpha: 0.1),
+                          color: categoryColor.withOpacity( 0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Icon(

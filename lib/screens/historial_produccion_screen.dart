@@ -226,7 +226,7 @@ class _HistorialProduccionScreenState extends State<HistorialProduccionScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             decoration: BoxDecoration(
-              color: const Color(0xFF2E7D32).withValues(alpha: 0.1),
+              color: const Color(0xFF2E7D32).withOpacity( 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
@@ -457,7 +457,7 @@ class _EditProductionDialogState extends State<EditProductionDialog> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFFFF8C00).withValues(alpha: 0.2),
+                color: const Color(0xFFFF8C00).withOpacity( 0.2),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
