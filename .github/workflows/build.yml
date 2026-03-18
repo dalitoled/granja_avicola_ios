@@ -1,4 +1,4 @@
-name: Build Android & iOS
+name: Build iOS App
 
 on:
   push:
@@ -9,32 +9,6 @@ on:
       - main
 
 jobs:
-  build-android:
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.41.4'
-          channel: 'stable'
-
-      - name: Get Flutter dependencies
-        run: flutter pub get
-
-      - name: Build Android APK
-        run: flutter build apk --debug
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-apk
-          path: build/app/outputs/flutter-apk/app-debug.apk
-          retention-days: 5
-
   build-ios:
     runs-on: macos-latest
     
@@ -45,11 +19,18 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.41.4'
+          flutter-version: '3.24.0'
           channel: 'stable'
 
       - name: Get Flutter dependencies
         run: flutter pub get
+
+      - name: Clean iOS build artifacts
+        run: |
+          cd ios
+          rm -rf Pods
+          rm -f Podfile.lock
+          rm -rf ~/Library/Developer/Xcode/DerivedData/*
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
@@ -59,7 +40,6 @@ jobs:
       - name: Install CocoaPods
         run: |
           cd ios
-          rm -f Podfile.lock
           pod install --repo-update
 
       - name: Build iOS for simulator

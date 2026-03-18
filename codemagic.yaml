@@ -1,0 +1,41 @@
+workflows:
+  ios-workflow:
+    name: iOS Build
+    max_build_duration: 60
+    environment:
+      flutter-version: 3.24.0
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Set up Flutter dependencies
+        script: |
+          flutter pub get
+
+      - name: Clean iOS build artifacts
+        script: |
+          cd ios
+          flutter clean
+          rm -rf Pods
+          rm -f Podfile.lock
+          rm -rf ~/Library/Developer/Xcode/DerivedData/*
+
+      - name: Install CocoaPods dependencies
+        script: |
+          cd ios
+          pod install --repo-update
+
+      - name: Build iOS for simulator
+        script: |
+          flutter build ios --simulator --no-codesign
+
+    artifacts:
+      - build/ios/iphonesimulator/*.app
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.app
+
+    publishing:
+      email:
+        recipients:
+          - danieldl1803@gmail.com
+        notify:
+          on_build_success: true
+          on_build_failure: true
