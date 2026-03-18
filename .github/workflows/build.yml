@@ -22,23 +22,27 @@ jobs:
           flutter-version: '3.24.0'
           channel: 'stable'
 
-      - name: Clean Flutter
-        run: flutter clean
+      - name: Clean Flutter completely
+        run: |
+          flutter clean
+          flutter pub get
 
-      - name: Get Flutter dependencies
-        run: flutter pub get
-
-      - name: Clean iOS artifacts
+      - name: Clean iOS artifacts completely
         run: |
           cd ios
           rm -rf Pods
           rm -f Podfile.lock
           rm -rf ~/Library/Developer/Xcode/DerivedData/*
+          rm -rf .symlinks
+          rm -rf build
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.2'
+
+      - name: Clean CocoaPods cache
+        run: pod cache clean --all || true
 
       - name: Install CocoaPods
         run: |
