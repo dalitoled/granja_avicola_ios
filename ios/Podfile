@@ -44,16 +44,6 @@ post_install do |installer|
     end
   end
 
-  # Patch gRPC source files directly
-  Dir.glob(File.join(installer.sandbox.root, '**/gRPC-Core/**/*.cfg')).each do |cfg_path|
-    content = File.read(cfg_path)
-    if content.include?('-G')
-      puts "Patching cfg: #{cfg_path}"
-      content = content.gsub(/-G\s*\S*/, '')
-      File.write(cfg_path, content)
-    end
-  end
-
   # Fix all targets
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
@@ -73,6 +63,16 @@ post_install do |installer|
       
       # Fix for simulator
       config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'i386'
+      
+      # Fix header search paths for abseil/gRPC
+      config.build_settings['HEADER_SEARCH_PATHS'] ||= ['$(inherited)']
+      config.build_settings['HEADER_SEARCH_PATHS'] = [
+        '$(inherited)',
+        '"${PODS_ROOT}/Headers/Public"',
+        '"${PODS_ROOT}/abseil/src"',
+        '"${PODS_ROOT}/BoringSSL-GRPC/src/include"',
+        '"${PODS_ROOT}/gRPC-Core/src/core/lib/security/credentials"'
+      ]
       
       # Proper linking
       ldflags = config.build_settings['OTHER_LDFLAGS'] || ['$(inherited)']

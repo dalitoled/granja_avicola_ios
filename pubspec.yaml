@@ -15,9 +15,9 @@ dependencies:
 
   cupertino_icons: ^1.0.8
   
-  # Firebase - Latest versions with Xcode 15+ compatibility
-  firebase_core: ^3.10.0
-  firebase_auth: ^5.5.0
+  # Firebase - Latest versions compatible with Dart 3.5
+  firebase_core: ^3.9.0
+  firebase_auth: ^5.1.0
   cloud_firestore: ^5.5.0
   
   # Utils
