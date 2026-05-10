@@ -24,12 +24,12 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: Get Flutter dependencies
+        run: flutter pub get
+
       - name: Install iOS dependencies
         run: |
           cd ios && pod install && cd ..
-
-      - name: Get Flutter dependencies
-        run: flutter pub get
 
       - name: Build iOS for simulator
         run: |
