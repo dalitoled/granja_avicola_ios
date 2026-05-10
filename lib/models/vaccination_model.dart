@@ -10,6 +10,8 @@ class VaccinationModel {
   final String method;
   final String? notes;
   final DateTime createdAt;
+  final bool isCompleted;
+  final DateTime? completedAt;
 
   VaccinationModel({
     this.id,
@@ -23,6 +25,8 @@ class VaccinationModel {
     required this.method,
     this.notes,
     required this.createdAt,
+    this.isCompleted = false,
+    this.completedAt,
   });
 
   factory VaccinationModel.fromMap(Map<String, dynamic> map) {
@@ -40,6 +44,10 @@ class VaccinationModel {
       method: map['method'] ?? '',
       notes: map['notes'],
       createdAt: DateTime.parse(map['createdAt']),
+      isCompleted: map['isCompleted'] ?? false,
+      completedAt: map['completedAt'] != null
+          ? DateTime.parse(map['completedAt'])
+          : null,
     );
   }
 
@@ -56,6 +64,8 @@ class VaccinationModel {
       'method': method,
       'notes': notes,
       'createdAt': createdAt.toIso8601String(),
+      'isCompleted': isCompleted,
+      'completedAt': completedAt?.toIso8601String(),
     };
   }
 
@@ -73,5 +83,37 @@ class VaccinationModel {
   int? get daysUntilNext {
     if (nextDoseDate == null) return null;
     return nextDoseDate!.difference(DateTime.now()).inDays;
+  }
+
+  VaccinationModel copyWith({
+    String? id,
+    String? userId,
+    String? lotId,
+    String? lotNumber,
+    String? vaccineName,
+    DateTime? applicationDate,
+    DateTime? nextDoseDate,
+    String? dose,
+    String? method,
+    String? notes,
+    DateTime? createdAt,
+    bool? isCompleted,
+    DateTime? completedAt,
+  }) {
+    return VaccinationModel(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      lotId: lotId ?? this.lotId,
+      lotNumber: lotNumber ?? this.lotNumber,
+      vaccineName: vaccineName ?? this.vaccineName,
+      applicationDate: applicationDate ?? this.applicationDate,
+      nextDoseDate: nextDoseDate ?? this.nextDoseDate,
+      dose: dose ?? this.dose,
+      method: method ?? this.method,
+      notes: notes ?? this.notes,
+      createdAt: createdAt ?? this.createdAt,
+      isCompleted: isCompleted ?? this.isCompleted,
+      completedAt: completedAt ?? this.completedAt,
+    );
   }
 }

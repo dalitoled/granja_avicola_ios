@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../models/egg_sale_model.dart';
 import '../services/sales_service.dart';
 import '../services/lot_service.dart';
+import '../utils/responsive.dart';
 import 'create_lot_screen.dart';
 
 class RegisterSaleScreen extends StatefulWidget {
@@ -22,15 +23,17 @@ class _RegisterSaleScreenState extends State<RegisterSaleScreen> {
   DateTime _selectedDate = DateTime.now();
   final _customerController = TextEditingController();
 
-  final Map<String, TextEditingController> _quantityControllers = {};
+  final Map<String, TextEditingController> _mountsControllers = {};
+  final Map<String, TextEditingController> _maplesControllers = {};
+  final Map<String, TextEditingController> _unitsControllers = {};
   final Map<String, TextEditingController> _priceControllers = {};
 
   bool _isLoading = false;
   bool _isCheckingLots = true;
   double _totalSale = 0;
-  bool _isByMount = false;
 
-  static const double MOUNT_EGGS = 300;
+  static const int MOUNT_EGGS = 300;
+  static const int MAPLE_EGGS = 30;
 
   final List<Map<String, dynamic>> _categories = [
     {'key': 'extra', 'label': 'Extra', 'color': const Color(0xFF4CAF50)},
@@ -49,10 +52,16 @@ class _RegisterSaleScreenState extends State<RegisterSaleScreen> {
     super.initState();
     _checkActiveLots();
     for (var category in _categories) {
-      _quantityControllers[category['key']] = TextEditingController();
-      _priceControllers[category['key']] = TextEditingController();
-      _quantityControllers[category['key']]!.addListener(_calculateTotal);
-      _priceControllers[category['key']]!.addListener(_calculateTotal);
+      String key = category['key'];
+      _mountsControllers[key] = TextEditingController();
+      _maplesControllers[key] = TextEditingController();
+      _unitsControllers[key] = TextEditingController();
+      _priceControllers[key] = TextEditingController();
+      
+      _mountsControllers[key]!.addListener(_calculateTotal);
+      _maplesControllers[key]!.addListener(_calculateTotal);
+      _unitsControllers[key]!.addListener(_calculateTotal);
+      _priceControllers[key]!.addListener(_calculateTotal);
     }
   }
 
@@ -78,7 +87,13 @@ class _RegisterSaleScreenState extends State<RegisterSaleScreen> {
   @override
   void dispose() {
     _customerController.dispose();
-    for (var controller in _quantityControllers.values) {
+    for (var controller in _mountsControllers.values) {
+      controller.dispose();
+    }
+    for (var controller in _maplesControllers.values) {
+      controller.dispose();
+    }
+    for (var controller in _unitsControllers.values) {
       controller.dispose();
     }
     for (var controller in _priceControllers.values) {
@@ -87,14 +102,20 @@ class _RegisterSaleScreenState extends State<RegisterSaleScreen> {
     super.dispose();
   }
 
+  int _getTotalUnits(String key) {
+    int mounts = int.tryParse(_mountsControllers[key]!.text) ?? 0;
+    int maples = int.tryParse(_maplesControllers[key]!.text) ?? 0;
+    int units = int.tryParse(_unitsControllers[key]!.text) ?? 0;
+    return mounts * MOUNT_EGGS + maples * MAPLE_EGGS + units;
+  }
+
   void _calculateTotal() {
     double total = 0;
     for (var category in _categories) {
       String key = category['key'];
-      double quantity = double.tryParse(_quantityControllers[key]!.text) ?? 0;
+      int totalUnits = _getTotalUnits(key);
       double price = double.tryParse(_priceControllers[key]!.text) ?? 0;
-      
-      total += quantity * price;
+      total += totalUnits * price;
     }
     setState(() {
       _totalSale = total;
@@ -116,14 +137,24 @@ class _RegisterSaleScreenState extends State<RegisterSaleScreen> {
   }
 
   double _getSubtotal(String key) {
-    double quantity = double.tryParse(_quantityControllers[key]!.text) ?? 0;
+    int totalUnits = _getTotalUnits(key);
     double price = double.tryParse(_priceControllers[key]!.text) ?? 0;
-    return quantity * price;
+    return totalUnits * price;
   }
 
-  double _getQuantity(String key) {
-    double quantity = double.tryParse(_quantityControllers[key]!.text) ?? 0;
-    return quantity;
+  String _getQuantityDisplay(String key) {
+    int mounts = int.tryParse(_mountsControllers[key]!.text) ?? 0;
+    int maples = int.tryParse(_maplesControllers[key]!.text) ?? 0;
+    int units = int.tryParse(_unitsControllers[key]!.text) ?? 0;
+    
+    int totalUnits = mounts * MOUNT_EGGS + maples * MAPLE_EGGS + units;
+    
+    List<String> parts = [];
+    if (mounts > 0) parts.add('$mounts Mo');
+    if (maples > 0) parts.add('$maples Ma');
+    if (units > 0) parts.add('$units U');
+    
+    return parts.isEmpty ? '0 ($totalUnits u)' : '${parts.join(' + ')} ($totalUnits u)';
   }
 
   Future<void> _saveSale() async {
@@ -143,32 +174,47 @@ class _RegisterSaleScreenState extends State<RegisterSaleScreen> {
         userId: user.uid,
         date: _selectedDate,
         customer: _customerController.text.trim(),
-        extraQuantity: _isByMount ? (_getQuantity('extra') * MOUNT_EGGS).toInt() : _getQuantity('extra').toInt(),
+        extraMounts: int.tryParse(_mountsControllers['extra']!.text) ?? 0,
+        extraMaples: int.tryParse(_maplesControllers['extra']!.text) ?? 0,
+        extraUnits: int.tryParse(_unitsControllers['extra']!.text) ?? 0,
         extraPrice: double.tryParse(_priceControllers['extra']!.text) ?? 0,
-        especialQuantity: _isByMount ? (_getQuantity('especial') * MOUNT_EGGS).toInt() : _getQuantity('especial').toInt(),
+        especialMounts: int.tryParse(_mountsControllers['especial']!.text) ?? 0,
+        especialMaples: int.tryParse(_maplesControllers['especial']!.text) ?? 0,
+        especialUnits: int.tryParse(_unitsControllers['especial']!.text) ?? 0,
         especialPrice: double.tryParse(_priceControllers['especial']!.text) ?? 0,
-        primeraQuantity: _isByMount ? (_getQuantity('primera') * MOUNT_EGGS).toInt() : _getQuantity('primera').toInt(),
+        primeraMounts: int.tryParse(_mountsControllers['primera']!.text) ?? 0,
+        primeraMaples: int.tryParse(_maplesControllers['primera']!.text) ?? 0,
+        primeraUnits: int.tryParse(_unitsControllers['primera']!.text) ?? 0,
         primeraPrice: double.tryParse(_priceControllers['primera']!.text) ?? 0,
-        segundaQuantity: _isByMount ? (_getQuantity('segunda') * MOUNT_EGGS).toInt() : _getQuantity('segunda').toInt(),
+        segundaMounts: int.tryParse(_mountsControllers['segunda']!.text) ?? 0,
+        segundaMaples: int.tryParse(_maplesControllers['segunda']!.text) ?? 0,
+        segundaUnits: int.tryParse(_unitsControllers['segunda']!.text) ?? 0,
         segundaPrice: double.tryParse(_priceControllers['segunda']!.text) ?? 0,
-        terceraQuantity: _isByMount ? (_getQuantity('tercera') * MOUNT_EGGS).toInt() : _getQuantity('tercera').toInt(),
+        terceraMounts: int.tryParse(_mountsControllers['tercera']!.text) ?? 0,
+        terceraMaples: int.tryParse(_maplesControllers['tercera']!.text) ?? 0,
+        terceraUnits: int.tryParse(_unitsControllers['tercera']!.text) ?? 0,
         terceraPrice: double.tryParse(_priceControllers['tercera']!.text) ?? 0,
-        cuartaQuantity: _isByMount ? (_getQuantity('cuarta') * MOUNT_EGGS).toInt() : _getQuantity('cuarta').toInt(),
+        cuartaMounts: int.tryParse(_mountsControllers['cuarta']!.text) ?? 0,
+        cuartaMaples: int.tryParse(_maplesControllers['cuarta']!.text) ?? 0,
+        cuartaUnits: int.tryParse(_unitsControllers['cuarta']!.text) ?? 0,
         cuartaPrice: double.tryParse(_priceControllers['cuarta']!.text) ?? 0,
-        quintaQuantity: _isByMount ? (_getQuantity('quinta') * MOUNT_EGGS).toInt() : _getQuantity('quinta').toInt(),
+        quintaMounts: int.tryParse(_mountsControllers['quinta']!.text) ?? 0,
+        quintaMaples: int.tryParse(_maplesControllers['quinta']!.text) ?? 0,
+        quintaUnits: int.tryParse(_unitsControllers['quinta']!.text) ?? 0,
         quintaPrice: double.tryParse(_priceControllers['quinta']!.text) ?? 0,
-        suciosQuantity: _isByMount ? (_getQuantity('sucios') * MOUNT_EGGS).toInt() : _getQuantity('sucios').toInt(),
+        suciosMounts: int.tryParse(_mountsControllers['sucios']!.text) ?? 0,
+        suciosMaples: int.tryParse(_maplesControllers['sucios']!.text) ?? 0,
+        suciosUnits: int.tryParse(_unitsControllers['sucios']!.text) ?? 0,
         suciosPrice: double.tryParse(_priceControllers['sucios']!.text) ?? 0,
-        rajadosQuantity: _isByMount ? (_getQuantity('rajados') * MOUNT_EGGS).toInt() : _getQuantity('rajados').toInt(),
+        rajadosMounts: int.tryParse(_mountsControllers['rajados']!.text) ?? 0,
+        rajadosMaples: int.tryParse(_maplesControllers['rajados']!.text) ?? 0,
+        rajadosUnits: int.tryParse(_unitsControllers['rajados']!.text) ?? 0,
         rajadosPrice: double.tryParse(_priceControllers['rajados']!.text) ?? 0,
         totalSale: _totalSale,
         createdAt: DateTime.now(),
-        isByMount: _isByMount,
       );
 
-      final calculatedTotal = sale.calculateTotal();
-
-      await _salesService.addSale(sale.copyWith(totalSale: calculatedTotal));
+      await _salesService.addSale(sale);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -196,11 +242,11 @@ class _RegisterSaleScreenState extends State<RegisterSaleScreen> {
 
   void _clearForm() {
     _customerController.clear();
-    for (var controller in _quantityControllers.values) {
-      controller.clear();
-    }
-    for (var controller in _priceControllers.values) {
-      controller.clear();
+    for (var key in _mountsControllers.keys) {
+      _mountsControllers[key]!.clear();
+      _maplesControllers[key]!.clear();
+      _unitsControllers[key]!.clear();
+      _priceControllers[key]!.clear();
     }
     setState(() {
       _selectedDate = DateTime.now();
@@ -240,7 +286,7 @@ class _RegisterSaleScreenState extends State<RegisterSaleScreen> {
             return Form(
               key: _formKey,
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
+                padding: Responsive.responsivePadding(context),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -310,9 +356,9 @@ class _RegisterSaleScreenState extends State<RegisterSaleScreen> {
   Widget _buildDateCard() {
     return Card(
       elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.cardRadius(context))),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(Responsive.responsiveValue(context, mobile: 12, tablet: 16, desktop: 20)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -365,27 +411,27 @@ class _RegisterSaleScreenState extends State<RegisterSaleScreen> {
   Widget _buildCustomerCard() {
     return Card(
       elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.cardRadius(context))),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(Responsive.responsiveValue(context, mobile: 12, tablet: 16, desktop: 20)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Row(
+            Row(
               children: [
-                Icon(Icons.person, color: Color(0xFF2E7D32)),
-                SizedBox(width: 8),
+                Icon(Icons.person, color: const Color(0xFF2E7D32), size: Responsive.subtitleSize(context)),
+                SizedBox(width: Responsive.responsiveValue(context, mobile: 6, tablet: 8, desktop: 12)),
                 Text(
                   'Datos del Cliente',
                   style: TextStyle(
-                    fontSize: 18,
+                    fontSize: Responsive.subtitleSize(context),
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF2E7D32),
+                    color: const Color(0xFF2E7D32),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: Responsive.responsiveValue(context, mobile: 8, tablet: 12, desktop: 16)),
             TextFormField(
               controller: _customerController,
               decoration: InputDecoration(
@@ -413,74 +459,45 @@ class _RegisterSaleScreenState extends State<RegisterSaleScreen> {
   Widget _buildCategoriesCard() {
     return Card(
       elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.cardRadius(context))),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(Responsive.responsiveValue(context, mobile: 12, tablet: 16, desktop: 20)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Row(
+            Row(
               children: [
-                Icon(Icons.egg, color: Color(0xFF2E7D32)),
-                SizedBox(width: 8),
+                Icon(Icons.egg, color: const Color(0xFF2E7D32), size: Responsive.subtitleSize(context)),
+                SizedBox(width: Responsive.responsiveValue(context, mobile: 6, tablet: 8, desktop: 12)),
                 Text(
                   'Categorías de Huevos',
                   style: TextStyle(
-                    fontSize: 18,
+                    fontSize: Responsive.subtitleSize(context),
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF2E7D32),
+                    color: const Color(0xFF2E7D32),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: Responsive.responsiveValue(context, mobile: 8, tablet: 12, desktop: 16)),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(12),
+              padding: EdgeInsets.all(Responsive.responsiveValue(context, mobile: 8, tablet: 12, desktop: 16)),
               decoration: BoxDecoration(
-                color: const Color(0xFF2E7D32).withOpacity( 0.1),
+                color: const Color(0xFF2E7D32).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Tipo de registro:', style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13)),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
+                  Row(
                     children: [
-                      ChoiceChip(
-                        label: const Text('Unidades', style: TextStyle(fontSize: 12)),
-                        selected: !_isByMount,
-                        onSelected: (selected) {
-                          if (selected) {
-                            setState(() {
-                              _isByMount = false;
-                              _calculateTotal();
-                            });
-                          }
-                        },
-                        selectedColor: const Color(0xFF2E7D32),
-                        labelStyle: TextStyle(
-                          color: !_isByMount ? Colors.white : Colors.black,
-                          fontSize: 12,
-                        ),
-                      ),
-                      ChoiceChip(
-                        label: const Text('Montones', style: TextStyle(fontSize: 12)),
-                        selected: _isByMount,
-                        onSelected: (selected) {
-                          if (selected) {
-                            setState(() {
-                              _isByMount = true;
-                              _calculateTotal();
-                            });
-                          }
-                        },
-                        selectedColor: const Color(0xFF2E7D32),
-                        labelStyle: TextStyle(
-                          color: _isByMount ? Colors.white : Colors.black,
-                          fontSize: 12,
+                      const Icon(Icons.info, color: Color(0xFF2E7D32), size: 18),
+                      SizedBox(width: Responsive.responsiveValue(context, mobile: 4, tablet: 8, desktop: 12)),
+                      Expanded(
+                        child: Text(
+                          '1 Montón = 10 Maples = 300 huevos | 1 Maple = 30 huevos',
+                          style: TextStyle(fontSize: Responsive.smallSize(context), color: const Color(0xFF2E7D32)),
                         ),
                       ),
                     ],
@@ -488,28 +505,6 @@ class _RegisterSaleScreenState extends State<RegisterSaleScreen> {
                 ],
               ),
             ),
-            if (_isByMount)
-              Container(
-                margin: const EdgeInsets.only(top: 8),
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.orange),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.info, color: Colors.orange, size: 18),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        '1 montón = 10 maples de 30 huevos = $MOUNT_EGGS huevos',
-                        style: TextStyle(color: Colors.orange.shade800, fontSize: 13),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             const SizedBox(height: 16),
             ..._categories.map((category) => _buildCategoryRow(category)),
           ],
@@ -524,74 +519,119 @@ class _RegisterSaleScreenState extends State<RegisterSaleScreen> {
     Color color = category['color'];
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(12),
+      margin: EdgeInsets.only(bottom: Responsive.responsiveValue(context, mobile: 12, tablet: 16, desktop: 20)),
+      padding: EdgeInsets.all(Responsive.responsiveValue(context, mobile: 10, tablet: 14, desktop: 16)),
       decoration: BoxDecoration(
-        color: color.withOpacity( 0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity( 0.3)),
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(Responsive.cardRadius(context)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: Responsive.subtitleSize(context),
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
+              Text(
+                _getQuantityDisplay(key),
+                style: TextStyle(
+                  fontSize: Responsive.smallSize(context),
+                  color: color,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 8),
           Row(
             children: [
-              Expanded(
+              SizedBox(
+                width: Responsive.isMobile(context) ? 55 : 70,
                 child: TextFormField(
-                  controller: _quantityControllers[key],
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
-                  ],
+                  controller: _mountsControllers[key],
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  style: TextStyle(fontSize: Responsive.smallSize(context)),
                   decoration: InputDecoration(
-                    labelText: _isByMount ? 'Montones' : 'Cant.',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
+                    labelText: 'Mo',
+                    hintText: '0',
+                    isDense: true,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                     filled: true,
                     fillColor: Colors.white,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 8,
-                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
                   ),
                 ),
               ),
-              const SizedBox(width: 6),
+              SizedBox(width: Responsive.isMobile(context) ? 3 : 6),
+              SizedBox(
+                width: Responsive.isMobile(context) ? 55 : 70,
+                child: TextFormField(
+                  controller: _maplesControllers[key],
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  style: TextStyle(fontSize: Responsive.smallSize(context)),
+                  decoration: InputDecoration(
+                    labelText: 'Ma',
+                    hintText: '0',
+                    isDense: true,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    filled: true,
+                    fillColor: Colors.white,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                  ),
+                ),
+              ),
+              SizedBox(width: Responsive.isMobile(context) ? 3 : 6),
+              SizedBox(
+                width: Responsive.isMobile(context) ? 55 : 70,
+                child: TextFormField(
+                  controller: _unitsControllers[key],
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  style: TextStyle(fontSize: Responsive.smallSize(context)),
+                  decoration: InputDecoration(
+                    labelText: 'U',
+                    hintText: '0',
+                    isDense: true,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    filled: true,
+                    fillColor: Colors.white,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                  ),
+                ),
+              ),
+              SizedBox(width: Responsive.isMobile(context) ? 4 : 8),
               Expanded(
                 child: TextFormField(
                   controller: _priceControllers[key],
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  style: TextStyle(fontSize: Responsive.smallSize(context)),
                   decoration: InputDecoration(
-                    labelText: _isByMount ? 'Precio/Montón' : 'Precio und.',
+                    labelText: 'Bs/u',
                     prefixText: 'Bs ',
+                    isDense: true,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
                     filled: true,
                     fillColor: Colors.white,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 8,
-                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: Responsive.isMobile(context) ? 4 : 8),
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
+                padding: EdgeInsets.symmetric(
+                  horizontal: Responsive.isMobile(context) ? 6 : 12,
                   vertical: 8,
                 ),
                 decoration: BoxDecoration(
@@ -600,9 +640,10 @@ class _RegisterSaleScreenState extends State<RegisterSaleScreen> {
                 ),
                 child: Text(
                   'Bs ${_getSubtotal(key).toStringAsFixed(2)}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
+                    fontSize: Responsive.smallSize(context),
                   ),
                 ),
               ),
@@ -617,24 +658,24 @@ class _RegisterSaleScreenState extends State<RegisterSaleScreen> {
     return Card(
       elevation: 4,
       color: const Color(0xFF2E7D32),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.cardRadius(context))),
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.all(Responsive.responsiveValue(context, mobile: 16, tablet: 20, desktop: 24)),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
+            Text(
               'Total Venta:',
               style: TextStyle(
-                fontSize: 20,
+                fontSize: Responsive.subtitleSize(context),
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
               ),
             ),
             Text(
               'Bs ${_totalSale.toStringAsFixed(2)}',
-              style: const TextStyle(
-                fontSize: 28,
+              style: TextStyle(
+                fontSize: Responsive.titleSize(context),
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
               ),
@@ -648,26 +689,29 @@ class _RegisterSaleScreenState extends State<RegisterSaleScreen> {
   Widget _buildSaveButton() {
     return SizedBox(
       width: double.infinity,
-      height: 56,
+      height: Responsive.responsiveValue(context, mobile: 50, tablet: 56, desktop: 60),
       child: ElevatedButton(
         onPressed: _isLoading ? null : _saveSale,
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFFFF8C00),
           foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(Responsive.cardRadius(context)),
           ),
         ),
         child: _isLoading
             ? const CircularProgressIndicator(color: Colors.white)
-            : const Row(
+            : Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.save, size: 24),
-                  SizedBox(width: 8),
+                  Icon(Icons.save, size: Responsive.responsiveValue(context, mobile: 20, tablet: 24, desktop: 28)),
+                  SizedBox(width: Responsive.responsiveValue(context, mobile: 6, tablet: 8, desktop: 12)),
                   Text(
                     'Guardar Venta',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontSize: Responsive.subtitleSize(context),
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ],
               ),

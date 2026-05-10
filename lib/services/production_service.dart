@@ -1,99 +1,135 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/egg_production_model.dart';
+import 'sync_service.dart';
 
 class ProductionService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final SyncService _syncService = SyncService.instance;
+
+  static const String _collection = 'produccion_diaria';
 
   Future<String> addProduction(EggProductionModel production) async {
     try {
-      DocumentReference docRef = await _firestore
-          .collection('produccion_diaria')
-          .add({
-            'userId': production.userId,
-            'date': production.date.toIso8601String(),
-            'extra': production.extra,
-            'especial': production.especial,
-            'primera': production.primera,
-            'segunda': production.segunda,
-            'tercera': production.tercera,
-            'cuarta': production.cuarta,
-            'quinta': production.quinta,
-            'sucios': production.sucios,
-            'rajados': production.rajados,
-            'descarte': production.descarte,
-            'totalHuevos': production.totalHuevos,
-            'createdAt': production.createdAt.toIso8601String(),
-          });
-
-      return docRef.id;
+      if (_syncService.isOnline) {
+        DocumentReference docRef = await _firestore
+            .collection(_collection)
+            .add(production.toMap());
+        return docRef.id;
+      } else {
+        final tempId = 'pending_${DateTime.now().millisecondsSinceEpoch}';
+        await _syncService.saveForLaterSync(
+          collection: _collection,
+          documentId: tempId,
+          data: production.toMap(),
+          operation: 'create',
+        );
+        return tempId;
+      }
     } catch (e) {
-      throw 'Error al guardar la producción: $e';
+      final tempId = 'pending_${DateTime.now().millisecondsSinceEpoch}';
+      await _syncService.saveForLaterSync(
+        collection: _collection,
+        documentId: tempId,
+        data: production.toMap(),
+        operation: 'create',
+      );
+      return tempId;
     }
   }
 
   Future<List<EggProductionModel>> getProductionsByUser(String userId) async {
+    if (_syncService.isOnline) {
+      try {
+        QuerySnapshot querySnapshot = await _firestore
+            .collection(_collection)
+            .where('userId', isEqualTo: userId)
+            .get();
+
+        List<EggProductionModel> productions = querySnapshot.docs.map((doc) {
+          Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+          data['id'] = doc.id;
+          return EggProductionModel.fromMap(data);
+        }).toList();
+
+        productions.sort((a, b) => b.date.compareTo(a.date));
+        return productions;
+      } catch (e) {
+        return await _getCachedProductions(userId);
+      }
+    } else {
+      return await _getCachedProductions(userId);
+    }
+  }
+
+  Future<List<EggProductionModel>> _getCachedProductions(String userId) async {
     try {
-      QuerySnapshot querySnapshot = await _firestore
-          .collection('produccion_diaria')
-          .where('userId', isEqualTo: userId)
-          .get();
-
-      List<EggProductionModel> productions = querySnapshot.docs.map((doc) {
-        Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-        data['id'] = doc.id;
-        return EggProductionModel.fromMap(data);
-      }).toList();
-
-      productions.sort((a, b) => b.date.compareTo(a.date));
-
-      return productions;
+      final cached = await _syncService.getCachedData(
+        collection: _collection,
+        userId: userId,
+      );
+      return cached.map((data) => EggProductionModel.fromMap(data)).toList();
     } catch (e) {
-      throw 'Error al obtener la producción: $e';
+      return [];
     }
   }
 
   Stream<List<EggProductionModel>> getProductionsByUserStream(String userId) {
     return _firestore
-        .collection('produccion_diaria')
+        .collection(_collection)
         .where('userId', isEqualTo: userId)
         .snapshots()
         .map((snapshot) {
-          List<EggProductionModel> productions = snapshot.docs.map((doc) {
-            Map<String, dynamic> data = doc.data();
-            data['id'] = doc.id;
-            return EggProductionModel.fromMap(data);
-          }).toList();
-          productions.sort((a, b) => b.date.compareTo(a.date));
-          return productions;
-        });
+      List<EggProductionModel> productions = snapshot.docs.map((doc) {
+        Map<String, dynamic> data = doc.data();
+        data['id'] = doc.id;
+        return EggProductionModel.fromMap(data);
+      }).toList();
+      productions.sort((a, b) => b.date.compareTo(a.date));
+      return productions;
+    });
   }
 
   Future<void> deleteProduction(String productionId) async {
     try {
-      await _firestore.collection('produccion_diaria').doc(productionId).delete();
+      if (_syncService.isOnline) {
+        await _firestore.collection(_collection).doc(productionId).delete();
+      } else {
+        await _syncService.saveForLaterSync(
+          collection: _collection,
+          documentId: productionId,
+          data: {},
+          operation: 'delete',
+        );
+      }
     } catch (e) {
-      throw 'Error al eliminar producción: $e';
+      await _syncService.saveForLaterSync(
+        collection: _collection,
+        documentId: productionId,
+        data: {},
+        operation: 'delete',
+      );
     }
   }
 
   Future<void> updateProduction(EggProductionModel production) async {
     try {
-      await _firestore.collection('produccion_diaria').doc(production.id).update({
-        'date': production.date.toIso8601String(),
-        'extra': production.extra,
-        'especial': production.especial,
-        'primera': production.primera,
-        'segunda': production.segunda,
-        'tercera': production.tercera,
-        'cuarta': production.cuarta,
-        'quinta': production.quinta,
-        'sucios': production.sucios,
-        'rajados': production.rajados,
-        'descarte': production.descarte,
-        'totalHuevos': production.totalHuevos,
-      });
+      if (_syncService.isOnline) {
+        await _firestore.collection(_collection).doc(production.id).update(production.toMap());
+      } else {
+        await _syncService.saveForLaterSync(
+          collection: _collection,
+          documentId: production.id,
+          data: production.toMap(),
+          operation: 'update',
+        );
+      }
     } catch (e) {
-      throw 'Error al actualizar producción: $e';
+      await _syncService.saveForLaterSync(
+        collection: _collection,
+        documentId: production.id,
+        data: production.toMap(),
+        operation: 'update',
+      );
     }
   }
 }

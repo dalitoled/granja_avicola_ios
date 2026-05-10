@@ -1,9 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../models/farm_expense_model.dart';
+import 'sync_service.dart';
 
 class ExpenseService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final SyncService _syncService = SyncService.instance;
+
+  static const String _collection = 'gastos_granja';
 
   static const List<String> categories = [
     'Alimento',
@@ -71,9 +75,27 @@ class ExpenseService {
 
   Future<String> addExpense(FarmExpenseModel expense) async {
     try {
-      DocumentReference docRef = await _firestore
-          .collection('gastos_granja')
-          .add({
+      if (_syncService.isOnline) {
+        DocumentReference docRef = await _firestore
+            .collection(_collection)
+            .add({
+              'userId': expense.userId,
+              'date': expense.date.toIso8601String(),
+              'category': expense.category,
+              'description': expense.description,
+              'amount': expense.amount,
+              'paymentMethod': expense.paymentMethod,
+              'notes': expense.notes,
+              'createdAt': expense.createdAt.toIso8601String(),
+            });
+
+        return docRef.id;
+      } else {
+        final tempId = 'pending_${DateTime.now().millisecondsSinceEpoch}';
+        await _syncService.saveForLaterSync(
+          collection: _collection,
+          documentId: tempId,
+          data: {
             'userId': expense.userId,
             'date': expense.date.toIso8601String(),
             'category': expense.category,
@@ -82,31 +104,65 @@ class ExpenseService {
             'paymentMethod': expense.paymentMethod,
             'notes': expense.notes,
             'createdAt': expense.createdAt.toIso8601String(),
-          });
-
-      return docRef.id;
+          },
+          operation: 'create',
+        );
+        return tempId;
+      }
     } catch (e) {
-      throw 'Error al registrar gasto: $e';
+      final tempId = 'pending_${DateTime.now().millisecondsSinceEpoch}';
+      await _syncService.saveForLaterSync(
+        collection: _collection,
+        documentId: tempId,
+        data: {
+          'userId': expense.userId,
+          'date': expense.date.toIso8601String(),
+          'category': expense.category,
+          'description': expense.description,
+          'amount': expense.amount,
+          'paymentMethod': expense.paymentMethod,
+          'notes': expense.notes,
+          'createdAt': expense.createdAt.toIso8601String(),
+        },
+        operation: 'create',
+      );
+      return tempId;
     }
   }
 
   Future<List<FarmExpenseModel>> getExpensesByUser(String userId) async {
+    if (_syncService.isOnline) {
+      try {
+        QuerySnapshot querySnapshot = await _firestore
+            .collection(_collection)
+            .where('userId', isEqualTo: userId)
+            .get();
+
+        List<FarmExpenseModel> expenses = querySnapshot.docs.map((doc) {
+          Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+          data['id'] = doc.id;
+          return FarmExpenseModel.fromMap(data);
+        }).toList();
+
+        expenses.sort((a, b) => b.date.compareTo(a.date));
+        return expenses;
+      } catch (e) {
+        return await _getCachedExpenses(userId);
+      }
+    } else {
+      return await _getCachedExpenses(userId);
+    }
+  }
+
+  Future<List<FarmExpenseModel>> _getCachedExpenses(String userId) async {
     try {
-      QuerySnapshot querySnapshot = await _firestore
-          .collection('gastos_granja')
-          .where('userId', isEqualTo: userId)
-          .get();
-
-      List<FarmExpenseModel> expenses = querySnapshot.docs.map((doc) {
-        Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-        data['id'] = doc.id;
-        return FarmExpenseModel.fromMap(data);
-      }).toList();
-
-      expenses.sort((a, b) => b.date.compareTo(a.date));
-      return expenses;
+      final cached = await _syncService.getCachedData(
+        collection: _collection,
+        userId: userId,
+      );
+      return cached.map((data) => FarmExpenseModel.fromMap(data)).toList();
     } catch (e) {
-      throw 'Error al obtener gastos: $e';
+      return [];
     }
   }
 
@@ -159,7 +215,7 @@ class ExpenseService {
   ) async {
     try {
       QuerySnapshot querySnapshot = await _firestore
-          .collection('gastos_granja')
+          .collection(_collection)
           .where('userId', isEqualTo: userId)
           .where('category', isEqualTo: category)
           .orderBy('date', descending: true)
@@ -255,24 +311,66 @@ class ExpenseService {
 
   Future<void> deleteExpense(String expenseId) async {
     try {
-      await _firestore.collection('gastos_granja').doc(expenseId).delete();
+      if (_syncService.isOnline) {
+        await _firestore.collection(_collection).doc(expenseId).delete();
+      } else {
+        await _syncService.saveForLaterSync(
+          collection: _collection,
+          documentId: expenseId,
+          data: {},
+          operation: 'delete',
+        );
+      }
     } catch (e) {
-      throw 'Error al eliminar gasto: $e';
+      await _syncService.saveForLaterSync(
+        collection: _collection,
+        documentId: expenseId,
+        data: {},
+        operation: 'delete',
+      );
     }
   }
 
   Future<void> updateExpense(FarmExpenseModel expense) async {
     try {
-      await _firestore.collection('gastos_granja').doc(expense.id).update({
-        'date': expense.date.toIso8601String(),
-        'category': expense.category,
-        'description': expense.description,
-        'amount': expense.amount,
-        'paymentMethod': expense.paymentMethod,
-        'notes': expense.notes,
-      });
+      if (_syncService.isOnline) {
+        await _firestore.collection(_collection).doc(expense.id).update({
+          'date': expense.date.toIso8601String(),
+          'category': expense.category,
+          'description': expense.description,
+          'amount': expense.amount,
+          'paymentMethod': expense.paymentMethod,
+          'notes': expense.notes,
+        });
+      } else {
+        await _syncService.saveForLaterSync(
+          collection: _collection,
+          documentId: expense.id,
+          data: {
+            'date': expense.date.toIso8601String(),
+            'category': expense.category,
+            'description': expense.description,
+            'amount': expense.amount,
+            'paymentMethod': expense.paymentMethod,
+            'notes': expense.notes,
+          },
+          operation: 'update',
+        );
+      }
     } catch (e) {
-      throw 'Error al actualizar gasto: $e';
+      await _syncService.saveForLaterSync(
+        collection: _collection,
+        documentId: expense.id,
+        data: {
+          'date': expense.date.toIso8601String(),
+          'category': expense.category,
+          'description': expense.description,
+          'amount': expense.amount,
+          'paymentMethod': expense.paymentMethod,
+          'notes': expense.notes,
+        },
+        operation: 'update',
+      );
     }
   }
 }

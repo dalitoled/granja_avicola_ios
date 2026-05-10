@@ -1,17 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
+import 'package:provider/provider.dart';
 import 'screens/login_screen.dart';
 import 'screens/activation_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'services/activation_service.dart';
 import 'services/farm_service.dart';
 import 'services/admin_service.dart';
+import 'services/sync_service.dart';
+import 'providers/auth_provider.dart';
+import 'providers/connectivity_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+  await SyncService.instance.checkConnection();
+  SyncService.instance.startAutoSync();
   runApp(const GranjaAvicolaApp());
 }
 
@@ -20,36 +26,42 @@ class GranjaAvicolaApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Granja Avícola',
-      debugShowCheckedModeBanner: false,
-      localizationsDelegates: const [
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AppAuthProvider()),
+        ChangeNotifierProvider(create: (_) => ConnectivityProvider()),
       ],
-      supportedLocales: const [Locale('es', 'ES')],
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF2E7D32),
-          brightness: Brightness.light,
-        ),
-        useMaterial3: true,
-        inputDecorationTheme: InputDecorationTheme(
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          filled: true,
-          fillColor: Colors.white,
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+      child: MaterialApp(
+        title: 'Granja Avícola',
+        debugShowCheckedModeBanner: false,
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: const [Locale('es', 'ES')],
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color(0xFF2E7D32),
+            brightness: Brightness.light,
+          ),
+          useMaterial3: true,
+          inputDecorationTheme: InputDecorationTheme(
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            filled: true,
+            fillColor: Colors.white,
+          ),
+          elevatedButtonTheme: ElevatedButtonThemeData(
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
           ),
         ),
+        home: const AuthWrapper(),
       ),
-      home: const AuthWrapper(),
     );
   }
 }
@@ -69,41 +81,59 @@ class _AuthWrapperState extends State<AuthWrapper> {
   static const String ADMIN_EMAIL = 'danielledezmad9@gmail.com';
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AppAuthProvider>().checkAuthStatus();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+    return Consumer<AppAuthProvider>(
+      builder: (context, authProvider, child) {
+        if (authProvider.isLoading) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
         }
 
-        if (snapshot.hasData) {
-          _checkAndSetAdmin(snapshot.data!);
+        return StreamBuilder<User?>(
+          stream: FirebaseAuth.instance.authStateChanges(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
 
-          return FutureBuilder<bool>(
-            future: _checkIfShouldShowDashboard(snapshot.data!.uid),
-            builder: (context, activationSnapshot) {
-              if (activationSnapshot.connectionState ==
-                  ConnectionState.waiting) {
-                return const Scaffold(
-                  body: Center(child: CircularProgressIndicator()),
-                );
-              }
+            if (snapshot.hasData) {
+              _checkAndSetAdmin(snapshot.data!);
 
-              final shouldShowDashboard = activationSnapshot.data ?? false;
+              return FutureBuilder<bool>(
+                future: _checkIfShouldShowDashboard(snapshot.data!.uid),
+                builder: (context, activationSnapshot) {
+                  if (activationSnapshot.connectionState ==
+                      ConnectionState.waiting) {
+                    return const Scaffold(
+                      body: Center(child: CircularProgressIndicator()),
+                    );
+                  }
 
-              if (shouldShowDashboard) {
-                return const DashboardScreen();
-              } else {
-                return const ActivationScreen();
-              }
-            },
-          );
-        }
+                  final shouldShowDashboard = activationSnapshot.data ?? false;
 
-        return const LoginScreen();
+                  if (shouldShowDashboard) {
+                    return const DashboardScreen();
+                  } else {
+                    return const ActivationScreen();
+                  }
+                },
+              );
+            }
+
+            return const LoginScreen();
+          },
+        );
       },
     );
   }

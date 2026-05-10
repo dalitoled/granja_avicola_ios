@@ -15,28 +15,65 @@ class VaccinationCalendarScreen extends StatefulWidget {
 class _VaccinationCalendarScreenState extends State<VaccinationCalendarScreen> {
   final VaccinationService _vaccinationService = VaccinationService();
   List<VaccinationModel> _upcomingVaccinations = [];
+  List<VaccinationModel> _completedVaccinations = [];
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _loadUpcomingVaccinations();
+    _loadVaccinations();
   }
 
-  Future<void> _loadUpcomingVaccinations() async {
+  Future<void> _loadVaccinations() async {
     try {
       User? user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
       List<VaccinationModel> upcoming = await _vaccinationService
           .getAllFutureVaccinations(user.uid);
+      
+      List<VaccinationModel> allVaccinations = await _vaccinationService
+          .getVaccinationsByUser(user.uid);
+      
+      List<VaccinationModel> completed = allVaccinations
+          .where((v) => v.isCompleted && v.nextDoseDate != null && v.nextDoseDate!.isAfter(DateTime.now()))
+          .toList();
+      
       setState(() {
-        _upcomingVaccinations = upcoming;
+        _upcomingVaccinations = upcoming.where((v) => !v.isCompleted).toList();
+        _completedVaccinations = completed;
         _isLoading = false;
       });
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _toggleCompleted(VaccinationModel vaccination) async {
+    try {
+      if (vaccination.isCompleted) {
+        await _vaccinationService.markAsIncomplete(vaccination.id!);
+      } else {
+        await _vaccinationService.markAsCompleted(vaccination.id!);
+      }
+      await _loadVaccinations();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(vaccination.isCompleted 
+              ? 'Marcado como pendiente' 
+              : 'Marcado como completado'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
@@ -72,7 +109,7 @@ class _VaccinationCalendarScreenState extends State<VaccinationCalendarScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
-              onRefresh: _loadUpcomingVaccinations,
+              onRefresh: _loadVaccinations,
               child: _upcomingVaccinations.isEmpty
                   ? Center(
                       child: Column(
@@ -143,6 +180,18 @@ class _VaccinationCalendarScreenState extends State<VaccinationCalendarScreen> {
                               (v) => _buildVaccinationCard(v),
                             ),
                           ],
+                          if (_completedVaccinations.isNotEmpty) ...[
+                            const SizedBox(height: 16),
+                            _buildSectionHeader(
+                              'Completadas',
+                              Colors.blue,
+                              _completedVaccinations.length,
+                            ),
+                            const SizedBox(height: 8),
+                            ..._completedVaccinations.map(
+                              (v) => _buildVaccinationCard(v, isCompleted: true),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -156,7 +205,7 @@ class _VaccinationCalendarScreenState extends State<VaccinationCalendarScreen> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: color.withOpacity( 0.1),
+            color: color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(20),
           ),
           child: Row(
@@ -190,12 +239,15 @@ class _VaccinationCalendarScreenState extends State<VaccinationCalendarScreen> {
     VaccinationModel vaccination, {
     bool isOverdue = false,
     bool isDueSoon = false,
+    bool isCompleted = false,
   }) {
-    Color statusColor = isOverdue
-        ? Colors.red
-        : (isDueSoon ? Colors.orange : const Color(0xFF2E7D32));
+    Color statusColor = isCompleted
+        ? Colors.blue
+        : (isOverdue
+            ? Colors.red
+            : (isDueSoon ? Colors.orange : const Color(0xFF2E7D32)));
     String daysText = '';
-    if (vaccination.daysUntilNext != null) {
+    if (vaccination.daysUntilNext != null && !isCompleted) {
       if (vaccination.daysUntilNext! < 0) {
         daysText = 'Hace ${-vaccination.daysUntilNext!} días';
       } else if (vaccination.daysUntilNext == 0) {
@@ -232,24 +284,25 @@ class _VaccinationCalendarScreenState extends State<VaccinationCalendarScreen> {
                     ),
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: statusColor.withOpacity( 0.1),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    daysText,
-                    style: TextStyle(
-                      color: statusColor,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
+                if (!isCompleted)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      daysText,
+                      style: TextStyle(
+                        color: statusColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
             const SizedBox(height: 8),
@@ -275,7 +328,7 @@ class _VaccinationCalendarScreenState extends State<VaccinationCalendarScreen> {
               ],
             ),
             const SizedBox(height: 8),
-            if (vaccination.nextDoseDate != null)
+            if (vaccination.nextDoseDate != null && !isCompleted)
               Row(
                 children: [
                   Icon(Icons.event, size: 16, color: statusColor),
@@ -289,6 +342,45 @@ class _VaccinationCalendarScreenState extends State<VaccinationCalendarScreen> {
                   ),
                 ],
               ),
+            if (isCompleted && vaccination.completedAt != null)
+              Row(
+                children: [
+                  Icon(Icons.check_circle, size: 16, color: Colors.blue),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Completado: ${DateFormat('dd/MM/yyyy').format(vaccination.completedAt!)}',
+                    style: const TextStyle(
+                      color: Colors.blue,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton.icon(
+                  onPressed: () => _toggleCompleted(vaccination),
+                  icon: Icon(
+                    vaccination.isCompleted 
+                        ? Icons.undo 
+                        : Icons.check_circle,
+                    size: 20,
+                  ),
+                  label: Text(
+                    vaccination.isCompleted 
+                        ? 'Desmarcar' 
+                        : 'Marcar completada',
+                  ),
+                  style: TextButton.styleFrom(
+                    foregroundColor: vaccination.isCompleted 
+                        ? Colors.orange 
+                        : Colors.green,
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),

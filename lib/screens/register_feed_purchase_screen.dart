@@ -244,7 +244,7 @@ class _RegisterFeedPurchaseScreenState
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: _selectedFeedType,
+              initialValue: _selectedFeedType,
               decoration: InputDecoration(
                 labelText: 'Tipo de Alimento',
                 prefixIcon: const Icon(Icons.restaurant),
@@ -427,7 +427,7 @@ class _RegisterFeedPurchaseScreenState
                 SizedBox(
                   width: 130,
                   child: DropdownButtonFormField<String>(
-                    value: _selectedUnit,
+                    initialValue: _selectedUnit,
                     isExpanded: true,
                     decoration: InputDecoration(
                       labelText: 'Unidad',

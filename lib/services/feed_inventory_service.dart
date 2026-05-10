@@ -1,9 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/feed_inventory_model.dart';
 import '../models/feed_purchase_model.dart';
+import 'sync_service.dart';
 
 class FeedInventoryService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final SyncService _syncService = SyncService.instance;
+
+  static const String _collectionInventory = 'inventario_alimento';
+  static const String _collectionPurchases = 'compras_alimento';
 
   static const List<String> defaultFeedTypes = [
     'Inicial',
@@ -14,22 +19,38 @@ class FeedInventoryService {
   ];
 
   Future<List<FeedInventoryModel>> getInventory(String userId) async {
+    if (_syncService.isOnline) {
+      try {
+        QuerySnapshot querySnapshot = await _firestore
+            .collection(_collectionInventory)
+            .where('userId', isEqualTo: userId)
+            .get();
+
+        List<FeedInventoryModel> inventory = querySnapshot.docs.map((doc) {
+          Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+          data['id'] = doc.id;
+          return FeedInventoryModel.fromMap(data);
+        }).toList();
+
+        inventory.sort((a, b) => a.feedType.compareTo(b.feedType));
+        return inventory;
+      } catch (e) {
+        return await _getCachedInventory(userId);
+      }
+    } else {
+      return await _getCachedInventory(userId);
+    }
+  }
+
+  Future<List<FeedInventoryModel>> _getCachedInventory(String userId) async {
     try {
-      QuerySnapshot querySnapshot = await _firestore
-          .collection('inventario_alimento')
-          .where('userId', isEqualTo: userId)
-          .get();
-
-      List<FeedInventoryModel> inventory = querySnapshot.docs.map((doc) {
-        Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-        data['id'] = doc.id;
-        return FeedInventoryModel.fromMap(data);
-      }).toList();
-
-      inventory.sort((a, b) => a.feedType.compareTo(b.feedType));
-      return inventory;
+      final cached = await _syncService.getCachedData(
+        collection: _collectionInventory,
+        userId: userId,
+      );
+      return cached.map((data) => FeedInventoryModel.fromMap(data)).toList();
     } catch (e) {
-      throw 'Error al obtener inventario: $e';
+      return [];
     }
   }
 
@@ -39,7 +60,7 @@ class FeedInventoryService {
   ) async {
     try {
       QuerySnapshot querySnapshot = await _firestore
-          .collection('inventario_alimento')
+          .collection(_collectionInventory)
           .where('userId', isEqualTo: userId)
           .where('feedType', isEqualTo: feedType)
           .get();
@@ -51,7 +72,7 @@ class FeedInventoryService {
       data['id'] = querySnapshot.docs.first.id;
       return FeedInventoryModel.fromMap(data);
     } catch (e) {
-      throw 'Error al obtener inventario por tipo: $e';
+      return null;
     }
   }
 
@@ -60,7 +81,7 @@ class FeedInventoryService {
       for (String feedType in defaultFeedTypes) {
         final existing = await getInventoryByType(userId, feedType);
         if (existing == null) {
-          await _firestore.collection('inventario_alimento').add({
+          await _firestore.collection(_collectionInventory).add({
             'userId': userId,
             'feedType': feedType,
             'stockKg': 0.0,
@@ -82,31 +103,61 @@ class FeedInventoryService {
     double? pricePerKg,
   ) async {
     try {
-      QuerySnapshot querySnapshot = await _firestore
-          .collection('inventario_alimento')
-          .where('userId', isEqualTo: userId)
-          .where('feedType', isEqualTo: feedType)
-          .get();
+      if (_syncService.isOnline) {
+        QuerySnapshot querySnapshot = await _firestore
+            .collection(_collectionInventory)
+            .where('userId', isEqualTo: userId)
+            .where('feedType', isEqualTo: feedType)
+            .get();
 
-      if (querySnapshot.docs.isEmpty) {
-        await _firestore.collection('inventario_alimento').add({
+        if (querySnapshot.docs.isEmpty) {
+          await _firestore.collection(_collectionInventory).add({
+            'userId': userId,
+            'feedType': feedType,
+            'stockKg': newStock,
+            'minimumStock': minimumStock ?? 50.0,
+            'pricePerKg': pricePerKg ?? 0.0,
+            'updatedAt': DateTime.now().toIso8601String(),
+          });
+        } else {
+          await querySnapshot.docs.first.reference.update({
+            'stockKg': newStock,
+            'minimumStock': minimumStock,
+            'pricePerKg': pricePerKg,
+            'updatedAt': DateTime.now().toIso8601String(),
+          });
+        }
+      } else {
+        final tempId = 'pending_${DateTime.now().millisecondsSinceEpoch}';
+        await _syncService.saveForLaterSync(
+          collection: _collectionInventory,
+          documentId: tempId,
+          data: {
+            'userId': userId,
+            'feedType': feedType,
+            'stockKg': newStock,
+            'minimumStock': minimumStock ?? 50.0,
+            'pricePerKg': pricePerKg ?? 0.0,
+            'updatedAt': DateTime.now().toIso8601String(),
+          },
+          operation: 'create',
+        );
+      }
+    } catch (e) {
+      final tempId = 'pending_${DateTime.now().millisecondsSinceEpoch}';
+      await _syncService.saveForLaterSync(
+        collection: _collectionInventory,
+        documentId: tempId,
+        data: {
           'userId': userId,
           'feedType': feedType,
           'stockKg': newStock,
           'minimumStock': minimumStock ?? 50.0,
           'pricePerKg': pricePerKg ?? 0.0,
           'updatedAt': DateTime.now().toIso8601String(),
-        });
-      } else {
-        await querySnapshot.docs.first.reference.update({
-          'stockKg': newStock,
-          'minimumStock': minimumStock,
-          'pricePerKg': pricePerKg,
-          'updatedAt': DateTime.now().toIso8601String(),
-        });
-      }
-    } catch (e) {
-      throw 'Error al actualizar stock: $e';
+        },
+        operation: 'create',
+      );
     }
   }
 
@@ -153,9 +204,41 @@ class FeedInventoryService {
 
   Future<String> addPurchase(FeedPurchaseModel purchase) async {
     try {
-      DocumentReference docRef = await _firestore
-          .collection('compras_alimento')
-          .add({
+      if (_syncService.isOnline) {
+        DocumentReference docRef = await _firestore
+            .collection(_collectionPurchases)
+            .add({
+              'userId': purchase.userId,
+              'feedType': purchase.feedType,
+              'quantityKg': purchase.quantityKg,
+              'pricePerKg': purchase.pricePerKg,
+              'totalCost': purchase.totalCost,
+              'supplier': purchase.supplier,
+              'date': purchase.date.toIso8601String(),
+              'notes': purchase.notes,
+              'createdAt': purchase.createdAt.toIso8601String(),
+            });
+
+        final current = await getInventoryByType(
+          purchase.userId,
+          purchase.feedType,
+        );
+        double newStock = (current?.stockKg ?? 0) + purchase.quantityKg;
+        await updateStock(
+          purchase.userId,
+          purchase.feedType,
+          newStock,
+          current?.minimumStock,
+          purchase.pricePerKg,
+        );
+
+        return docRef.id;
+      } else {
+        final tempId = 'pending_${DateTime.now().millisecondsSinceEpoch}';
+        await _syncService.saveForLaterSync(
+          collection: _collectionPurchases,
+          documentId: tempId,
+          data: {
             'userId': purchase.userId,
             'feedType': purchase.feedType,
             'quantityKg': purchase.quantityKg,
@@ -165,63 +248,66 @@ class FeedInventoryService {
             'date': purchase.date.toIso8601String(),
             'notes': purchase.notes,
             'createdAt': purchase.createdAt.toIso8601String(),
-          });
-
-      final current = await getInventoryByType(
-        purchase.userId,
-        purchase.feedType,
-      );
-      double newStock = (current?.stockKg ?? 0) + purchase.quantityKg;
-      await updateStock(
-        purchase.userId,
-        purchase.feedType,
-        newStock,
-        current?.minimumStock,
-        purchase.pricePerKg,
-      );
-
-      return docRef.id;
+          },
+          operation: 'create',
+        );
+        return tempId;
+      }
     } catch (e) {
-      throw 'Error al registrar compra: $e';
+      final tempId = 'pending_${DateTime.now().millisecondsSinceEpoch}';
+      await _syncService.saveForLaterSync(
+        collection: _collectionPurchases,
+        documentId: tempId,
+        data: {
+          'userId': purchase.userId,
+          'feedType': purchase.feedType,
+          'quantityKg': purchase.quantityKg,
+          'pricePerKg': purchase.pricePerKg,
+          'totalCost': purchase.totalCost,
+          'supplier': purchase.supplier,
+          'date': purchase.date.toIso8601String(),
+          'notes': purchase.notes,
+          'createdAt': purchase.createdAt.toIso8601String(),
+        },
+        operation: 'create',
+      );
+      return tempId;
     }
   }
 
   Future<List<FeedPurchaseModel>> getPurchaseHistory(String userId) async {
-    try {
-      QuerySnapshot querySnapshot = await _firestore
-          .collection('compras_alimento')
-          .where('userId', isEqualTo: userId)
-          .orderBy('date', descending: true)
-          .get();
+    if (_syncService.isOnline) {
+      try {
+        QuerySnapshot querySnapshot = await _firestore
+            .collection(_collectionPurchases)
+            .where('userId', isEqualTo: userId)
+            .orderBy('date', descending: true)
+            .get();
 
-      List<FeedPurchaseModel> purchases = querySnapshot.docs.map((doc) {
-        Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-        data['id'] = doc.id;
-        return FeedPurchaseModel.fromMap(data);
-      }).toList();
+        List<FeedPurchaseModel> purchases = querySnapshot.docs.map((doc) {
+          Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+          data['id'] = doc.id;
+          return FeedPurchaseModel.fromMap(data);
+        }).toList();
 
-      return purchases;
-    } catch (e) {
-      if (e.toString().contains('failed-precondition')) {
-        try {
-          QuerySnapshot querySnapshot = await _firestore
-              .collection('compras_alimento')
-              .where('userId', isEqualTo: userId)
-              .get();
-
-          List<FeedPurchaseModel> purchases = querySnapshot.docs.map((doc) {
-            Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-            data['id'] = doc.id;
-            return FeedPurchaseModel.fromMap(data);
-          }).toList();
-
-          purchases.sort((a, b) => b.date.compareTo(a.date));
-          return purchases;
-        } catch (fallbackError) {
-          throw 'Error al obtener historial: $fallbackError';
-        }
+        return purchases;
+      } catch (e) {
+        return await _getCachedPurchases(userId);
       }
-      throw 'Error al obtener historial de compras: $e';
+    } else {
+      return await _getCachedPurchases(userId);
+    }
+  }
+
+  Future<List<FeedPurchaseModel>> _getCachedPurchases(String userId) async {
+    try {
+      final cached = await _syncService.getCachedData(
+        collection: _collectionPurchases,
+        userId: userId,
+      );
+      return cached.map((data) => FeedPurchaseModel.fromMap(data)).toList();
+    } catch (e) {
+      return [];
     }
   }
 
@@ -231,7 +317,7 @@ class FeedInventoryService {
   ) async {
     try {
       QuerySnapshot querySnapshot = await _firestore
-          .collection('compras_alimento')
+          .collection(_collectionPurchases)
           .where('userId', isEqualTo: userId)
           .where('feedType', isEqualTo: feedType)
           .orderBy('date', descending: true)
@@ -245,29 +331,7 @@ class FeedInventoryService {
 
       return purchases;
     } catch (e) {
-      if (e.toString().contains('failed-precondition')) {
-        try {
-          QuerySnapshot querySnapshot = await _firestore
-              .collection('compras_alimento')
-              .where('userId', isEqualTo: userId)
-              .get();
-
-          List<FeedPurchaseModel> allPurchases = querySnapshot.docs.map((doc) {
-            Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-            data['id'] = doc.id;
-            return FeedPurchaseModel.fromMap(data);
-          }).toList();
-
-          List<FeedPurchaseModel> filtered = allPurchases
-              .where((p) => p.feedType == feedType)
-              .toList();
-          filtered.sort((a, b) => b.date.compareTo(a.date));
-          return filtered;
-        } catch (fallbackError) {
-          throw 'Error al obtener compras por tipo: $fallbackError';
-        }
-      }
-      throw 'Error al obtener compras por tipo: $e';
+      return [];
     }
   }
 
@@ -304,14 +368,23 @@ class FeedInventoryService {
 
   Future<void> deleteFeedType(String userId, String feedType) async {
     try {
-      QuerySnapshot querySnapshot = await _firestore
-          .collection('inventario_alimento')
-          .where('userId', isEqualTo: userId)
-          .where('feedType', isEqualTo: feedType)
-          .get();
+      if (_syncService.isOnline) {
+        QuerySnapshot querySnapshot = await _firestore
+            .collection(_collectionInventory)
+            .where('userId', isEqualTo: userId)
+            .where('feedType', isEqualTo: feedType)
+            .get();
 
-      for (var doc in querySnapshot.docs) {
-        await doc.reference.delete();
+        for (var doc in querySnapshot.docs) {
+          await doc.reference.delete();
+        }
+      } else {
+        await _syncService.saveForLaterSync(
+          collection: _collectionInventory,
+          documentId: feedType,
+          data: {'feedType': feedType},
+          operation: 'delete',
+        );
       }
     } catch (e) {
       throw 'Error al eliminar tipo de alimento: $e';
@@ -320,25 +393,69 @@ class FeedInventoryService {
 
   Future<void> deletePurchase(String purchaseId) async {
     try {
-      await _firestore.collection('compras_alimento').doc(purchaseId).delete();
+      if (_syncService.isOnline) {
+        await _firestore.collection(_collectionPurchases).doc(purchaseId).delete();
+      } else {
+        await _syncService.saveForLaterSync(
+          collection: _collectionPurchases,
+          documentId: purchaseId,
+          data: {},
+          operation: 'delete',
+        );
+      }
     } catch (e) {
-      throw 'Error al eliminar compra: $e';
+      await _syncService.saveForLaterSync(
+        collection: _collectionPurchases,
+        documentId: purchaseId,
+        data: {},
+        operation: 'delete',
+      );
     }
   }
 
   Future<void> updatePurchase(FeedPurchaseModel purchase) async {
     try {
-      await _firestore.collection('compras_alimento').doc(purchase.id).update({
-        'feedType': purchase.feedType,
-        'quantityKg': purchase.quantityKg,
-        'pricePerKg': purchase.pricePerKg,
-        'totalCost': purchase.totalCost,
-        'supplier': purchase.supplier,
-        'date': purchase.date.toIso8601String(),
-        'notes': purchase.notes,
-      });
+      if (_syncService.isOnline) {
+        await _firestore.collection(_collectionPurchases).doc(purchase.id).update({
+          'feedType': purchase.feedType,
+          'quantityKg': purchase.quantityKg,
+          'pricePerKg': purchase.pricePerKg,
+          'totalCost': purchase.totalCost,
+          'supplier': purchase.supplier,
+          'date': purchase.date.toIso8601String(),
+          'notes': purchase.notes,
+        });
+      } else {
+        await _syncService.saveForLaterSync(
+          collection: _collectionPurchases,
+          documentId: purchase.id,
+          data: {
+            'feedType': purchase.feedType,
+            'quantityKg': purchase.quantityKg,
+            'pricePerKg': purchase.pricePerKg,
+            'totalCost': purchase.totalCost,
+            'supplier': purchase.supplier,
+            'date': purchase.date.toIso8601String(),
+            'notes': purchase.notes,
+          },
+          operation: 'update',
+        );
+      }
     } catch (e) {
-      throw 'Error al actualizar compra: $e';
+      await _syncService.saveForLaterSync(
+        collection: _collectionPurchases,
+        documentId: purchase.id,
+        data: {
+          'feedType': purchase.feedType,
+          'quantityKg': purchase.quantityKg,
+          'pricePerKg': purchase.pricePerKg,
+          'totalCost': purchase.totalCost,
+          'supplier': purchase.supplier,
+          'date': purchase.date.toIso8601String(),
+          'notes': purchase.notes,
+        },
+        operation: 'update',
+      );
     }
   }
 }

@@ -238,21 +238,6 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
     }
   }
 
-  double _getCalculatedTotal(EggSaleModel sale) {
-    if (sale.isByMount) {
-      return (sale.extraQuantity * sale.extraPrice / EggSaleModel.MOUNT_EGGS) +
-          (sale.especialQuantity * sale.especialPrice / EggSaleModel.MOUNT_EGGS) +
-          (sale.primeraQuantity * sale.primeraPrice / EggSaleModel.MOUNT_EGGS) +
-          (sale.segundaQuantity * sale.segundaPrice / EggSaleModel.MOUNT_EGGS) +
-          (sale.terceraQuantity * sale.terceraPrice / EggSaleModel.MOUNT_EGGS) +
-          (sale.cuartaQuantity * sale.cuartaPrice / EggSaleModel.MOUNT_EGGS) +
-          (sale.quintaQuantity * sale.quintaPrice / EggSaleModel.MOUNT_EGGS) +
-          (sale.suciosQuantity * sale.suciosPrice / EggSaleModel.MOUNT_EGGS) +
-          (sale.rajadosQuantity * sale.rajadosPrice / EggSaleModel.MOUNT_EGGS);
-    }
-    return sale.totalSale;
-  }
-
   void _showEditDialog(EggSaleModel sale) {
     showDialog(
       context: context,
@@ -266,55 +251,28 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
 
   Widget _buildDetailSection(EggSaleModel sale) {
     final categories = [
-      {
-        'label': 'Extra',
-        'quantity': sale.extraQuantity,
-        'price': sale.extraPrice,
-      },
-      {
-        'label': 'Especial',
-        'quantity': sale.especialQuantity,
-        'price': sale.especialPrice,
-      },
-      {
-        'label': 'Primera',
-        'quantity': sale.primeraQuantity,
-        'price': sale.primeraPrice,
-      },
-      {
-        'label': 'Segunda',
-        'quantity': sale.segundaQuantity,
-        'price': sale.segundaPrice,
-      },
-      {
-        'label': 'Tercera',
-        'quantity': sale.terceraQuantity,
-        'price': sale.terceraPrice,
-      },
-      {
-        'label': 'Cuarta',
-        'quantity': sale.cuartaQuantity,
-        'price': sale.cuartaPrice,
-      },
-      {
-        'label': 'Quinta',
-        'quantity': sale.quintaQuantity,
-        'price': sale.quintaPrice,
-      },
-      {
-        'label': 'Sucios',
-        'quantity': sale.suciosQuantity,
-        'price': sale.suciosPrice,
-      },
-      {
-        'label': 'Rajados',
-        'quantity': sale.rajadosQuantity,
-        'price': sale.rajadosPrice,
-      },
+      {'label': 'Extra', 'key': 'extra'},
+      {'label': 'Especial', 'key': 'especial'},
+      {'label': 'Primera', 'key': 'primera'},
+      {'label': 'Segunda', 'key': 'segunda'},
+      {'label': 'Tercera', 'key': 'tercera'},
+      {'label': 'Cuarta', 'key': 'cuarta'},
+      {'label': 'Quinta', 'key': 'quinta'},
+      {'label': 'Sucios', 'key': 'sucios'},
+      {'label': 'Rajados', 'key': 'rajados'},
     ];
 
-    final isByMount = sale.isByMount;
-    final mountLabel = isByMount ? 'montón(es)' : 'huevo(s)';
+    final colorMap = {
+      'extra': const Color(0xFF4CAF50),
+      'especial': const Color(0xFF8BC34A),
+      'primera': const Color(0xFFCDDC39),
+      'segunda': const Color(0xFFFFEB3B),
+      'tercera': const Color(0xFFFFC107),
+      'cuarta': const Color(0xFFFF9800),
+      'quinta': const Color(0xFFFF5722),
+      'sucios': const Color(0xFF795548),
+      'rajados': const Color(0xFF9E9E9E),
+    };
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -324,21 +282,24 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
       ),
       child: Column(
         children: [
-          Text(
-            'Detalle de la Venta${isByMount ? ' (Por Montones)' : ''}',
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          const Text(
+            'Detalle de la Venta',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
           const SizedBox(height: 12),
-          ...categories
-              .where((c) => (c['quantity'] as int) >= 0)
-              .map(
-                (category) => _buildDetailRow(
-                  category['label'] as String,
-                  category['quantity'] as int,
-                  category['price'] as double,
-                  isByMount,
-                ),
-              ),
+          ...categories.map(
+            (category) {
+              final key = category['key'] as String;
+              final quantityDisplay = sale.getDisplayQuantity(key);
+              if (quantityDisplay == '0') return const SizedBox.shrink();
+              return _buildDetailRow(
+                category['label'] as String,
+                quantityDisplay,
+                sale.getPrice(key),
+                colorMap[key]!,
+              );
+            },
+          ),
           const Divider(),
           Container(
             width: double.infinity,
@@ -353,13 +314,13 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                 const Text(
                   'TOTAL',
                   style: TextStyle(
-                    fontWeight: FontWeight.bold, 
+                    fontWeight: FontWeight.bold,
                     fontSize: 16,
                     color: Colors.white,
                   ),
                 ),
                 Text(
-                  'Bs ${_getCalculatedTotal(sale).toStringAsFixed(2)}',
+                  'Bs ${sale.totalSale.toStringAsFixed(2)}',
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 18,
@@ -374,52 +335,39 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
     );
   }
 
-  Widget _buildDetailRow(String label, int quantity, double price, bool isByMount) {
-    final displayQty = isByMount ? quantity / EggSaleModel.MOUNT_EGGS : quantity.toDouble();
-    final displayUnit = isByMount ? 'montón' : 'huevo';
-    final priceLabel = isByMount ? 'Bs/montón' : 'Bs/huevo';
-    final subtotal = isByMount ? (quantity * price / EggSaleModel.MOUNT_EGGS) : (quantity * price);
-    
+  Widget _buildDetailRow(String label, String quantityDisplay, double price, Color color) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              color: Colors.grey.shade700,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 2),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
-                child: Text(
-                  '${displayQty.toStringAsFixed(2)} $displayUnit x $priceLabel: ${price.toStringAsFixed(2)}',
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-                  overflow: TextOverflow.ellipsis,
+              Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(3),
                 ),
               ),
               const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2E7D32).withOpacity( 0.1),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  'Bs ${subtotal.toStringAsFixed(2)}',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF2E7D32),
-                    fontSize: 13,
-                  ),
+              Text(
+                label,
+                style: TextStyle(
+                  color: Colors.grey.shade700,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ],
+          ),
+          Text(
+            quantityDisplay,
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+          ),
+          Text(
+            'Bs/u ${price.toStringAsFixed(2)}',
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
           ),
         ],
       ),
@@ -445,110 +393,92 @@ class EditSaleDialog extends StatefulWidget {
 
 class _EditSaleDialogState extends State<EditSaleDialog> {
   late TextEditingController _customerController;
-  late TextEditingController _extraQtyController;
-  late TextEditingController _extraPriceController;
-  late TextEditingController _especialQtyController;
-  late TextEditingController _especialPriceController;
-  late TextEditingController _primeraQtyController;
-  late TextEditingController _primeraPriceController;
-  late TextEditingController _segundaQtyController;
-  late TextEditingController _segundaPriceController;
-  late TextEditingController _terceraQtyController;
-  late TextEditingController _terceraPriceController;
-  late TextEditingController _cuartaQtyController;
-  late TextEditingController _cuartaPriceController;
-  late TextEditingController _quintaQtyController;
-  late TextEditingController _quintaPriceController;
-  late TextEditingController _suciosQtyController;
-  late TextEditingController _suciosPriceController;
-  late TextEditingController _rajadosQtyController;
-  late TextEditingController _rajadosPriceController;
+  late Map<String, TextEditingController> _mountsControllers;
+  late Map<String, TextEditingController> _maplesControllers;
+  late Map<String, TextEditingController> _unitsControllers;
+  late Map<String, TextEditingController> _priceControllers;
   late DateTime _selectedDate;
-  late bool _isByMount;
   bool _isLoading = false;
+
+  static const int MOUNT_EGGS = 300;
+  static const int MAPLE_EGGS = 30;
+
+  final List<Map<String, dynamic>> _categories = [
+    {'key': 'extra', 'label': 'Extra'},
+    {'key': 'especial', 'label': 'Especial'},
+    {'key': 'primera', 'label': 'Primera'},
+    {'key': 'segunda', 'label': 'Segunda'},
+    {'key': 'tercera', 'label': 'Tercera'},
+    {'key': 'cuarta', 'label': 'Cuarta'},
+    {'key': 'quinta', 'label': 'Quinta'},
+    {'key': 'sucios', 'label': 'Sucios'},
+    {'key': 'rajados', 'label': 'Rajados'},
+  ];
 
   @override
   void initState() {
     super.initState();
     _customerController = TextEditingController(text: widget.sale.customer);
-    _extraQtyController = TextEditingController(text: widget.sale.extraQuantity.toString());
-    _extraPriceController = TextEditingController(text: widget.sale.extraPrice.toString());
-    _especialQtyController = TextEditingController(text: widget.sale.especialQuantity.toString());
-    _especialPriceController = TextEditingController(text: widget.sale.especialPrice.toString());
-    _primeraQtyController = TextEditingController(text: widget.sale.primeraQuantity.toString());
-    _primeraPriceController = TextEditingController(text: widget.sale.primeraPrice.toString());
-    _segundaQtyController = TextEditingController(text: widget.sale.segundaQuantity.toString());
-    _segundaPriceController = TextEditingController(text: widget.sale.segundaPrice.toString());
-    _terceraQtyController = TextEditingController(text: widget.sale.terceraQuantity.toString());
-    _terceraPriceController = TextEditingController(text: widget.sale.terceraPrice.toString());
-    _cuartaQtyController = TextEditingController(text: widget.sale.cuartaQuantity.toString());
-    _cuartaPriceController = TextEditingController(text: widget.sale.cuartaPrice.toString());
-    _quintaQtyController = TextEditingController(text: widget.sale.quintaQuantity.toString());
-    _quintaPriceController = TextEditingController(text: widget.sale.quintaPrice.toString());
-    _suciosQtyController = TextEditingController(text: widget.sale.suciosQuantity.toString());
-    _suciosPriceController = TextEditingController(text: widget.sale.suciosPrice.toString());
-    _rajadosQtyController = TextEditingController(text: widget.sale.rajadosQuantity.toString());
-    _rajadosPriceController = TextEditingController(text: widget.sale.rajadosPrice.toString());
     _selectedDate = widget.sale.date;
-    _isByMount = widget.sale.isByMount;
+
+    _mountsControllers = {};
+    _maplesControllers = {};
+    _unitsControllers = {};
+    _priceControllers = {};
+
+    for (var category in _categories) {
+      String key = category['key'];
+      _mountsControllers[key] = TextEditingController(
+        text: _getFieldValue(key, 'mounts').toString(),
+      );
+      _maplesControllers[key] = TextEditingController(
+        text: _getFieldValue(key, 'maples').toString(),
+      );
+      _unitsControllers[key] = TextEditingController(
+        text: _getFieldValue(key, 'units').toString(),
+      );
+      _priceControllers[key] = TextEditingController(
+        text: widget.sale.getPrice(key).toString(),
+      );
+    }
+  }
+
+  int _getFieldValue(String key, String type) {
+    switch (key) {
+      case 'extra': return type == 'mounts' ? widget.sale.extraMounts : (type == 'maples' ? widget.sale.extraMaples : widget.sale.extraUnits);
+      case 'especial': return type == 'mounts' ? widget.sale.especialMounts : (type == 'maples' ? widget.sale.especialMaples : widget.sale.especialUnits);
+      case 'primera': return type == 'mounts' ? widget.sale.primeraMounts : (type == 'maples' ? widget.sale.primeraMaples : widget.sale.primeraUnits);
+      case 'segunda': return type == 'mounts' ? widget.sale.segundaMounts : (type == 'maples' ? widget.sale.segundaMaples : widget.sale.segundaUnits);
+      case 'tercera': return type == 'mounts' ? widget.sale.terceraMounts : (type == 'maples' ? widget.sale.terceraMaples : widget.sale.terceraUnits);
+      case 'cuarta': return type == 'mounts' ? widget.sale.cuartaMounts : (type == 'maples' ? widget.sale.cuartaMaples : widget.sale.cuartaUnits);
+      case 'quinta': return type == 'mounts' ? widget.sale.quintaMounts : (type == 'maples' ? widget.sale.quintaMaples : widget.sale.quintaUnits);
+      case 'sucios': return type == 'mounts' ? widget.sale.suciosMounts : (type == 'maples' ? widget.sale.suciosMaples : widget.sale.suciosUnits);
+      case 'rajados': return type == 'mounts' ? widget.sale.rajadosMounts : (type == 'maples' ? widget.sale.rajadosMaples : widget.sale.rajadosUnits);
+      default: return 0;
+    }
   }
 
   @override
   void dispose() {
     _customerController.dispose();
-    _extraQtyController.dispose();
-    _extraPriceController.dispose();
-    _especialQtyController.dispose();
-    _especialPriceController.dispose();
-    _primeraQtyController.dispose();
-    _primeraPriceController.dispose();
-    _segundaQtyController.dispose();
-    _segundaPriceController.dispose();
-    _terceraQtyController.dispose();
-    _terceraPriceController.dispose();
-    _cuartaQtyController.dispose();
-    _cuartaPriceController.dispose();
-    _quintaQtyController.dispose();
-    _quintaPriceController.dispose();
-    _suciosQtyController.dispose();
-    _suciosPriceController.dispose();
-    _rajadosQtyController.dispose();
-    _rajadosPriceController.dispose();
+    for (var c in _mountsControllers.values) c.dispose();
+    for (var c in _maplesControllers.values) c.dispose();
+    for (var c in _unitsControllers.values) c.dispose();
+    for (var c in _priceControllers.values) c.dispose();
     super.dispose();
   }
 
   double get _total {
-    if (_isByMount) {
-      return (_getQtyAsDouble(_extraQtyController) * _getPrice(_extraPriceController)) +
-          (_getQtyAsDouble(_especialQtyController) * _getPrice(_especialPriceController)) +
-          (_getQtyAsDouble(_primeraQtyController) * _getPrice(_primeraPriceController)) +
-          (_getQtyAsDouble(_segundaQtyController) * _getPrice(_segundaPriceController)) +
-          (_getQtyAsDouble(_terceraQtyController) * _getPrice(_terceraPriceController)) +
-          (_getQtyAsDouble(_cuartaQtyController) * _getPrice(_cuartaPriceController)) +
-          (_getQtyAsDouble(_quintaQtyController) * _getPrice(_quintaPriceController)) +
-          (_getQtyAsDouble(_suciosQtyController) * _getPrice(_suciosPriceController)) +
-          (_getQtyAsDouble(_rajadosQtyController) * _getPrice(_rajadosPriceController));
+    double total = 0;
+    for (var category in _categories) {
+      String key = category['key'];
+      int mounts = int.tryParse(_mountsControllers[key]!.text) ?? 0;
+      int maples = int.tryParse(_maplesControllers[key]!.text) ?? 0;
+      int units = int.tryParse(_unitsControllers[key]!.text) ?? 0;
+      double price = double.tryParse(_priceControllers[key]!.text) ?? 0;
+      total += (mounts * MOUNT_EGGS + maples * MAPLE_EGGS + units) * price;
     }
-    return (_getQty(_extraQtyController) * _getPrice(_extraPriceController)) +
-        (_getQty(_especialQtyController) * _getPrice(_especialPriceController)) +
-        (_getQty(_primeraQtyController) * _getPrice(_primeraPriceController)) +
-        (_getQty(_segundaQtyController) * _getPrice(_segundaPriceController)) +
-        (_getQty(_terceraQtyController) * _getPrice(_terceraPriceController)) +
-        (_getQty(_cuartaQtyController) * _getPrice(_cuartaPriceController)) +
-        (_getQty(_quintaQtyController) * _getPrice(_quintaPriceController)) +
-        (_getQty(_suciosQtyController) * _getPrice(_suciosPriceController)) +
-        (_getQty(_rajadosQtyController) * _getPrice(_rajadosPriceController));
-  }
-
-  int _getQty(TextEditingController controller) => int.tryParse(controller.text) ?? 0;
-  double _getPrice(TextEditingController controller) => double.tryParse(controller.text) ?? 0;
-  double _getQtyAsDouble(TextEditingController controller) => double.tryParse(controller.text) ?? 0;
-  
-  int _getQtyAsEggs(TextEditingController controller) {
-    if (_isByMount) {
-      return ((double.tryParse(controller.text) ?? 0) * EggSaleModel.MOUNT_EGGS).toInt();
-    }
-    return int.tryParse(controller.text) ?? 0;
+    return total;
   }
 
   Future<void> _selectDate() async {
@@ -570,26 +500,43 @@ class _EditSaleDialogState extends State<EditSaleDialog> {
       EggSaleModel updated = widget.sale.copyWith(
         customer: _customerController.text,
         date: _selectedDate,
-        extraQuantity: _getQtyAsEggs(_extraQtyController),
-        extraPrice: _getPrice(_extraPriceController),
-        especialQuantity: _getQtyAsEggs(_especialQtyController),
-        especialPrice: _getPrice(_especialPriceController),
-        primeraQuantity: _getQtyAsEggs(_primeraQtyController),
-        primeraPrice: _getPrice(_primeraPriceController),
-        segundaQuantity: _getQtyAsEggs(_segundaQtyController),
-        segundaPrice: _getPrice(_segundaPriceController),
-        terceraQuantity: _getQtyAsEggs(_terceraQtyController),
-        terceraPrice: _getPrice(_terceraPriceController),
-        cuartaQuantity: _getQtyAsEggs(_cuartaQtyController),
-        cuartaPrice: _getPrice(_cuartaPriceController),
-        quintaQuantity: _getQtyAsEggs(_quintaQtyController),
-        quintaPrice: _getPrice(_quintaPriceController),
-        suciosQuantity: _getQtyAsEggs(_suciosQtyController),
-        suciosPrice: _getPrice(_suciosPriceController),
-        rajadosQuantity: _getQtyAsEggs(_rajadosQtyController),
-        rajadosPrice: _getPrice(_rajadosPriceController),
+        extraMounts: int.tryParse(_mountsControllers['extra']!.text) ?? 0,
+        extraMaples: int.tryParse(_maplesControllers['extra']!.text) ?? 0,
+        extraUnits: int.tryParse(_unitsControllers['extra']!.text) ?? 0,
+        extraPrice: double.tryParse(_priceControllers['extra']!.text) ?? 0,
+        especialMounts: int.tryParse(_mountsControllers['especial']!.text) ?? 0,
+        especialMaples: int.tryParse(_maplesControllers['especial']!.text) ?? 0,
+        especialUnits: int.tryParse(_unitsControllers['especial']!.text) ?? 0,
+        especialPrice: double.tryParse(_priceControllers['especial']!.text) ?? 0,
+        primeraMounts: int.tryParse(_mountsControllers['primera']!.text) ?? 0,
+        primeraMaples: int.tryParse(_maplesControllers['primera']!.text) ?? 0,
+        primeraUnits: int.tryParse(_unitsControllers['primera']!.text) ?? 0,
+        primeraPrice: double.tryParse(_priceControllers['primera']!.text) ?? 0,
+        segundaMounts: int.tryParse(_mountsControllers['segunda']!.text) ?? 0,
+        segundaMaples: int.tryParse(_maplesControllers['segunda']!.text) ?? 0,
+        segundaUnits: int.tryParse(_unitsControllers['segunda']!.text) ?? 0,
+        segundaPrice: double.tryParse(_priceControllers['segunda']!.text) ?? 0,
+        terceraMounts: int.tryParse(_mountsControllers['tercera']!.text) ?? 0,
+        terceraMaples: int.tryParse(_maplesControllers['tercera']!.text) ?? 0,
+        terceraUnits: int.tryParse(_unitsControllers['tercera']!.text) ?? 0,
+        terceraPrice: double.tryParse(_priceControllers['tercera']!.text) ?? 0,
+        cuartaMounts: int.tryParse(_mountsControllers['cuarta']!.text) ?? 0,
+        cuartaMaples: int.tryParse(_maplesControllers['cuarta']!.text) ?? 0,
+        cuartaUnits: int.tryParse(_unitsControllers['cuarta']!.text) ?? 0,
+        cuartaPrice: double.tryParse(_priceControllers['cuarta']!.text) ?? 0,
+        quintaMounts: int.tryParse(_mountsControllers['quinta']!.text) ?? 0,
+        quintaMaples: int.tryParse(_maplesControllers['quinta']!.text) ?? 0,
+        quintaUnits: int.tryParse(_unitsControllers['quinta']!.text) ?? 0,
+        quintaPrice: double.tryParse(_priceControllers['quinta']!.text) ?? 0,
+        suciosMounts: int.tryParse(_mountsControllers['sucios']!.text) ?? 0,
+        suciosMaples: int.tryParse(_maplesControllers['sucios']!.text) ?? 0,
+        suciosUnits: int.tryParse(_unitsControllers['sucios']!.text) ?? 0,
+        suciosPrice: double.tryParse(_priceControllers['sucios']!.text) ?? 0,
+        rajadosMounts: int.tryParse(_mountsControllers['rajados']!.text) ?? 0,
+        rajadosMaples: int.tryParse(_maplesControllers['rajados']!.text) ?? 0,
+        rajadosUnits: int.tryParse(_unitsControllers['rajados']!.text) ?? 0,
+        rajadosPrice: double.tryParse(_priceControllers['rajados']!.text) ?? 0,
         totalSale: _total,
-        isByMount: _isByMount,
       );
 
       await widget.salesService.updateSale(updated);
@@ -633,27 +580,66 @@ class _EditSaleDialogState extends State<EditSaleDialog> {
               decoration: const InputDecoration(labelText: 'Cliente'),
             ),
             const SizedBox(height: 12),
-            SwitchListTile(
-              title: const Text('Venta por montones'),
-              subtitle: Text(_isByMount ? '1 mount = 300 huevos' : 'Venta por unidades'),
-              value: _isByMount,
-              onChanged: (value) => setState(() => _isByMount = value),
-            ),
-            const SizedBox(height: 12),
-            _buildCategoryRow('Extra', _extraQtyController, _extraPriceController),
-            _buildCategoryRow('Especial', _especialQtyController, _especialPriceController),
-            _buildCategoryRow('Primera', _primeraQtyController, _primeraPriceController),
-            _buildCategoryRow('Segunda', _segundaQtyController, _segundaPriceController),
-            _buildCategoryRow('Tercera', _terceraQtyController, _terceraPriceController),
-            _buildCategoryRow('Cuarta', _cuartaQtyController, _cuartaPriceController),
-            _buildCategoryRow('Quinta', _quintaQtyController, _quintaPriceController),
-            _buildCategoryRow('Sucios', _suciosQtyController, _suciosPriceController),
-            _buildCategoryRow('Rajados', _rajadosQtyController, _rajadosPriceController),
+            const Text('M = Montones, Mz = Maples, U = Unidades', style: TextStyle(fontSize: 11, color: Colors.grey)),
+            const SizedBox(height: 8),
+            ..._categories.map((category) {
+              String key = category['key'];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: Text(category['label'] as String, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12)),
+                    ),
+                    Expanded(
+                      flex: 1,
+                      child: TextField(
+                        controller: _mountsControllers[key],
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(labelText: 'M', isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 8)),
+                        onChanged: (_) => setState(() {}),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      flex: 1,
+                      child: TextField(
+                        controller: _maplesControllers[key],
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(labelText: 'Mz', isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 8)),
+                        onChanged: (_) => setState(() {}),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      flex: 1,
+                      child: TextField(
+                        controller: _unitsControllers[key],
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(labelText: 'U', isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 8)),
+                        onChanged: (_) => setState(() {}),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      flex: 2,
+                      child: TextField(
+                        controller: _priceControllers[key],
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(labelText: 'Bs/u', isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 8)),
+                        onChanged: (_) => setState(() {}),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFF2E7D32).withOpacity( 0.2),
+                color: const Color(0xFF2E7D32).withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
@@ -674,46 +660,11 @@ class _EditSaleDialogState extends State<EditSaleDialog> {
         ),
         ElevatedButton(
           onPressed: _isLoading ? null : _save,
-          child: _isLoading 
+          child: _isLoading
               ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
               : const Text('Guardar'),
         ),
       ],
-    );
-  }
-
-  Widget _buildCategoryRow(String label, TextEditingController qtyController, TextEditingController priceController) {
-    final unitLabel = _isByMount ? 'Cant (mount)' : 'Cant';
-    final priceLabel = _isByMount ? 'Bs/mount' : 'Bs/huevo';
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 2,
-            child: Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
-          ),
-          Expanded(
-            flex: 2,
-            child: TextField(
-              controller: qtyController,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(labelText: unitLabel, isDense: true),
-              onChanged: (_) => setState(() {}),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            flex: 2,
-            child: TextField(
-              controller: priceController,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(labelText: priceLabel, isDense: true),
-              onChanged: (_) => setState(() {}),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

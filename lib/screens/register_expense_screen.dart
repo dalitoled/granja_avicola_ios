@@ -225,7 +225,7 @@ class _RegisterExpenseScreenState extends State<RegisterExpenseScreen> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: _selectedCategory,
+              initialValue: _selectedCategory,
               decoration: InputDecoration(
                 labelText: 'Seleccionar categoría',
                 border: OutlineInputBorder(
@@ -383,7 +383,7 @@ class _RegisterExpenseScreenState extends State<RegisterExpenseScreen> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: _selectedPaymentMethod,
+              initialValue: _selectedPaymentMethod,
               decoration: InputDecoration(
                 labelText: 'Seleccionar método',
                 border: OutlineInputBorder(

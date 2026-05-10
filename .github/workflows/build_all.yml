@@ -1,0 +1,83 @@
+name: Build All Platforms
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+          cache: true
+
+      - name: Get Flutter dependencies
+        run: flutter pub get
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Build Android APK
+        run: flutter build apk --debug
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          retention-days: 7
+
+  build-ios:
+    runs-on: macos-14
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+          cache: true
+
+      - name: Install iOS dependencies
+        run: |
+          cd ios && pod install && cd ..
+
+      - name: Get Flutter dependencies
+        run: flutter pub get
+
+      - name: Build iOS (Simulator)
+        run: |
+          flutter build ios --simulator --no-codesign
+
+      - name: Build iOS Release (unsigned)
+        run: |
+          flutter build ios --release --no-codesign
+
+      - name: Create ZIP of app
+        run: |
+          mkdir -p build/ios-ipa
+          cp -r build/ios/iphonesimulator/Build/Products/Release-iphonesimulator/*.app build/ios-ipa/ 2>/dev/null || true
+          cd build/ios-ipa && zip -r ../app.zip *.app 2>/dev/null || echo "No simulator build"
+
+      - name: Upload iOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-app
+          path: build/app.zip
+          retention-days: 7
+        continue-on-error: true

@@ -27,7 +27,22 @@ class AuthorizationCodeService {
 
       return true;
     } catch (e) {
-      return false;
+      throw 'Error validando código: $e';
+    }
+  }
+
+  Future<Map<String, dynamic>?> getCodeData(String code) async {
+    try {
+      final snapshot = await _firestore
+          .collection('codigos_autorizacion')
+          .where('code', isEqualTo: code.toUpperCase())
+          .get();
+      if (snapshot.docs.isNotEmpty) {
+        return snapshot.docs.first.data();
+      }
+      return null;
+    } catch (e) {
+      return null;
     }
   }
 
@@ -35,6 +50,7 @@ class AuthorizationCodeService {
     String code,
     String userId,
     String farmName,
+    String farmId,
   ) async {
     try {
       final snapshot = await _firestore
@@ -47,6 +63,7 @@ class AuthorizationCodeService {
           'used': true,
           'usedBy': userId,
           'farmName': farmName,
+          'farmId': farmId,
           'usedAt': DateTime.now().toIso8601String(),
         });
       }
@@ -107,7 +124,30 @@ class AuthorizationCodeService {
     }
   }
 
-  Future<void> createCodeForUser(String email, String ownerName) async {
+  Future<List<Map<String, dynamic>>> getCodesByFarm(String farmId) async {
+    try {
+      final snapshot = await _firestore
+          .collection('codigos_autorizacion')
+          .where('farmId', isEqualTo: farmId)
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        data['id'] = doc.id;
+        return data;
+      }).toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  Future<void> createCodeForUser({
+    required String email,
+    required String ownerName,
+    required String farmId,
+    required String farmName,
+  }) async {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     String code;
     bool exists = true;
@@ -131,6 +171,8 @@ class AuthorizationCodeService {
       'used': false,
       'forEmail': email,
       'ownerName': ownerName,
+      'farmId': farmId,
+      'farmName': farmName,
       'createdAt': DateTime.now().toIso8601String(),
       'expiresAt': DateTime.now()
           .add(const Duration(days: 365))

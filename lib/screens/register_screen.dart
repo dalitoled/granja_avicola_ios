@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/auth_service.dart';
+import '../services/authorization_code_service.dart';
+import '../models/role_model.dart';
 import 'register_farm_screen.dart';
+import 'dashboard_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -11,14 +16,18 @@ class RegisterScreen extends StatefulWidget {
 
 class _RegisterScreenState extends State<RegisterScreen> {
   final AuthService _authService = AuthService();
+  final AuthorizationCodeService _authCodeService = AuthorizationCodeService();
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _codeController = TextEditingController();
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+
+  static const String ADMIN_EMAIL = 'danielledezmad9@gmail.com';
 
   @override
   void dispose() {
@@ -26,6 +35,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _codeController.dispose();
     super.dispose();
   }
 
@@ -37,19 +47,114 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
 
     try {
-      await _authService.registerWithEmailAndPassword(
+      final email = _emailController.text.trim().toLowerCase();
+      final isSuperAdminEmail = email == ADMIN_EMAIL.toLowerCase();
+      
+      // CASO 1: Es el SuperAdmin principal
+      if (isSuperAdminEmail) {
+        await _authService.registerWithEmailAndPassword(
+          name: _nameController.text.trim(),
+          email: email,
+          password: _passwordController.text,
+          role: AppRole.superAdmin,
+          farmId: '',
+          createdBy: '',
+        );
+
+        if (mounted) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const RegisterFarmScreen()),
+            (route) => false,
+          );
+        }
+        return;
+      }
+
+      // CASO 2: Usuario normal (requiere código obligatorio)
+      final codeStr = _codeController.text.trim().toUpperCase();
+
+      // Para validar el código necesitamos estar autenticados (reglas de Firestore).
+      // 1. Registramos temporalmente al usuario con permisos mínimos para entrar.
+      final newUser = await _authService.registerWithEmailAndPassword(
         name: _nameController.text.trim(),
-        email: _emailController.text.trim(),
+        email: email,
         password: _passwordController.text,
+        role: AppRole.operador,
+        farmId: '',
+        createdBy: '',
       );
 
-      if (mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => const RegisterFarmScreen()),
-          (route) => false,
-        );
+      if (newUser == null) {
+        throw 'No se pudo crear la cuenta de usuario.';
       }
+
+      // 2. Ahora sí estamos autenticados. Procedemos a validar el código.
+      final isValidCode = await _authCodeService.validateCode(codeStr, null);
+
+      if (!isValidCode) {
+        // El código fue engañoso o bloqueado. PROCEDEMOS A REVERTIR Y BORRAR LA CUENTA:
+        final firebaseUser = FirebaseAuth.instance.currentUser;
+        if (firebaseUser != null) {
+          await FirebaseFirestore.instance.collection('users').doc(firebaseUser.uid).delete();
+          await firebaseUser.delete();
+          await FirebaseAuth.instance.signOut();
+        }
+
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Código de autorización inválido o ya usado.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      // 3. El código ES VÁLIDO. Obtenemos la granja destino.
+      String targetFarmId = '';
+      final codeData = await _authCodeService.getCodeData(codeStr);
+      if (codeData != null) {
+        targetFarmId = codeData['farmId'] ?? '';
+      }
+
+      // 4. Actualizamos el perfil del usuario a ADMIN y le asignamos la granja correcta
+      await _authService.updateUserRole(newUser.uid, AppRole.admin);
+      
+      if (targetFarmId.isNotEmpty) {
+        await _authService.updateUserFarmId(newUser.uid, targetFarmId);
+      }
+
+      // 5. Quemamos/Usamos el código
+      await _authCodeService.markCodeAsUsed(
+        codeStr,
+        newUser.uid,
+        _nameController.text.trim(),
+        targetFarmId,
+      );
+
+      // 6. Redirigimos al usuario victorioso a su nueva vista de control
+      if (mounted) {
+        if (targetFarmId.isNotEmpty) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const DashboardScreen()),
+            (route) => false,
+          );
+        } else {
+          // Fallback por si acaso es un código raro sin granja asignada
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const RegisterFarmScreen()),
+            (route) => false,
+          );
+        }
+      }
+
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -216,6 +321,94 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           }
                           return null;
                         },
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.purple.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.purple,
+                            width: 2,
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  width: 28,
+                                  height: 28,
+                                  decoration: const BoxDecoration(
+                                    color: Colors.purple,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.key,
+                                    color: Colors.white,
+                                    size: 18,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Código de activación requerido',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.purple,
+                                        ),
+                                      ),
+                                      Text(
+                                        'Solicita uno al administrador del sistema',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.grey.shade700,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            TextFormField(
+                              controller: _codeController,
+                              decoration: InputDecoration(
+                                labelText: 'Código de Activación',
+                                hintText: 'Ej: ABC12345',
+                                prefixIcon: const Icon(Icons.key, color: Colors.purple),
+                                suffixIcon: _codeController.text.length == 8
+                                    ? const Icon(Icons.check_circle, color: Colors.green)
+                                    : null,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                filled: true,
+                                fillColor: Colors.white,
+                              ),
+                              textCapitalization: TextCapitalization.characters,
+                              onChanged: (value) => setState(() {}),
+                              validator: (value) {
+                                // Se permite omitir solo si es el SuperAdmin principal
+                                if (_emailController.text.trim().toLowerCase() == ADMIN_EMAIL.toLowerCase()) {
+                                  return null; 
+                                }
+                                if (value == null || value.trim().isEmpty) {
+                                  return 'El código de activación es obligatorio';
+                                }
+                                if (value.trim().length != 8) {
+                                  return 'El código debe tener exactamente 8 caracteres';
+                                }
+                                return null;
+                              },
+                            ),
+                          ],
+                        ),
                       ),
                       const SizedBox(height: 24),
                       SizedBox(

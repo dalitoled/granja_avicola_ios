@@ -154,7 +154,7 @@ class _HistorialProduccionScreenState extends State<HistorialProduccionScreen> {
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
         ),
         subtitle: Text(
-          'Total: ${production.totalHuevos} huevos',
+          production.displayTotal,
           style: const TextStyle(
             color: Color(0xFF2E7D32),
             fontWeight: FontWeight.w600,
@@ -167,18 +167,18 @@ class _HistorialProduccionScreenState extends State<HistorialProduccionScreen> {
               color: Colors.grey.shade100,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Column(
+            child:             Column(
               children: [
-                _buildDetailRow('Extra', production.extra),
-                _buildDetailRow('Especial', production.especial),
-                _buildDetailRow('Primera', production.primera),
-                _buildDetailRow('Segunda', production.segunda),
-                _buildDetailRow('Tercera', production.tercera),
-                _buildDetailRow('Cuarta', production.cuarta),
-                _buildDetailRow('Quinta', production.quinta),
-                _buildDetailRow('Sucios', production.sucios),
-                _buildDetailRow('Rajados', production.rajados),
-                _buildDetailRow('Descarte', production.descarte, isLast: true),
+                _buildDetailRow('Extra', production.extra, production.extraMaples, production.extraMounts),
+                _buildDetailRow('Especial', production.especial, production.especialMaples, production.especialMounts),
+                _buildDetailRow('Primera', production.primera, production.primeraMaples, production.primeraMounts),
+                _buildDetailRow('Segunda', production.segunda, production.segundaMaples, production.segundaMounts),
+                _buildDetailRow('Tercera', production.tercera, production.terceraMaples, production.terceraMounts),
+                _buildDetailRow('Cuarta', production.cuarta, production.cuartaMaples, production.cuartaMounts),
+                _buildDetailRow('Quinta', production.quinta, production.quintaMaples, production.quintaMounts),
+                _buildDetailRow('Sucios', production.sucios, production.suciosMaples, production.suciosMounts),
+                _buildDetailRow('Rajados', production.rajados, production.rajadosMaples, production.rajadosMounts),
+                _buildDetailRow('Descarte', production.descarte, production.descarteMaples, production.descarteMounts, isLast: true),
               ],
             ),
           ),
@@ -210,7 +210,32 @@ class _HistorialProduccionScreenState extends State<HistorialProduccionScreen> {
     );
   }
 
-  Widget _buildDetailRow(String label, int value, {bool isLast = false}) {
+  Widget _buildDetailRow(String label, int units, int maples, int mounts, {bool isLast = false}) {
+    final fromMaples = maples * EggProductionModel.MAPLE_EGGS;
+    final fromMounts = mounts * EggProductionModel.MOUNT_EGGS;
+    final total = units + fromMaples + fromMounts;
+    
+    final hasMaples = maples > 0;
+    final hasMounts = mounts > 0;
+    final hasUnits = units > 0;
+    
+    String valueText;
+    if (hasMounts && hasMaples && hasUnits) {
+      valueText = '$mounts m ($fromMounts) + $maples m ($fromMaples) + $units = $total';
+    } else if (hasMounts && hasMaples) {
+      valueText = '$mounts m ($fromMounts) + $maples m ($fromMaples) = $total';
+    } else if (hasMounts && hasUnits) {
+      valueText = '$mounts m ($fromMounts) + $units = $total';
+    } else if (hasMounts) {
+      valueText = '$mounts m = $total';
+    } else if (hasMaples && hasUnits) {
+      valueText = '$maples m ($fromMaples) + $units = $total';
+    } else if (hasMaples) {
+      valueText = '$maples m = $total';
+    } else {
+      valueText = '$units';
+    }
+    
     return Padding(
       padding: EdgeInsets.only(bottom: isLast ? 0 : 8),
       child: Row(
@@ -224,14 +249,15 @@ class _HistorialProduccionScreenState extends State<HistorialProduccionScreen> {
             ),
           ),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: const Color(0xFF2E7D32).withOpacity( 0.1),
+              color: const Color(0xFF2E7D32).withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
-              value.toString(),
+              valueText,
               style: const TextStyle(
+                fontSize: 12,
                 fontWeight: FontWeight.bold,
                 color: Color(0xFF2E7D32),
               ),
@@ -326,8 +352,35 @@ class _EditProductionDialogState extends State<EditProductionDialog> {
   late TextEditingController _suciosController;
   late TextEditingController _rajadosController;
   late TextEditingController _descarteController;
+  
+  late TextEditingController _extraMaplesController;
+  late TextEditingController _especialMaplesController;
+  late TextEditingController _primeraMaplesController;
+  late TextEditingController _segundaMaplesController;
+  late TextEditingController _terceraMaplesController;
+  late TextEditingController _cuartaMaplesController;
+  late TextEditingController _quintaMaplesController;
+  late TextEditingController _suciosMaplesController;
+  late TextEditingController _rajadosMaplesController;
+  late TextEditingController _descarteMaplesController;
+  
+  late TextEditingController _extraMountsController;
+  late TextEditingController _especialMountsController;
+  late TextEditingController _primeraMountsController;
+  late TextEditingController _segundaMountsController;
+  late TextEditingController _terceraMountsController;
+  late TextEditingController _cuartaMountsController;
+  late TextEditingController _quintaMountsController;
+  late TextEditingController _suciosMountsController;
+  late TextEditingController _rajadosMountsController;
+  late TextEditingController _descarteMountsController;
+  
   late DateTime _selectedDate;
   bool _isLoading = false;
+
+  static const int MAPLE_EGGS = 30;
+  static const int MOUNT_MAPLES = 10;
+  static const int MOUNT_EGGS = MAPLE_EGGS * MOUNT_MAPLES;
 
   @override
   void initState() {
@@ -342,6 +395,29 @@ class _EditProductionDialogState extends State<EditProductionDialog> {
     _suciosController = TextEditingController(text: widget.production.sucios.toString());
     _rajadosController = TextEditingController(text: widget.production.rajados.toString());
     _descarteController = TextEditingController(text: widget.production.descarte.toString());
+    
+    _extraMaplesController = TextEditingController(text: widget.production.extraMaples.toString());
+    _especialMaplesController = TextEditingController(text: widget.production.especialMaples.toString());
+    _primeraMaplesController = TextEditingController(text: widget.production.primeraMaples.toString());
+    _segundaMaplesController = TextEditingController(text: widget.production.segundaMaples.toString());
+    _terceraMaplesController = TextEditingController(text: widget.production.terceraMaples.toString());
+    _cuartaMaplesController = TextEditingController(text: widget.production.cuartaMaples.toString());
+    _quintaMaplesController = TextEditingController(text: widget.production.quintaMaples.toString());
+    _suciosMaplesController = TextEditingController(text: widget.production.suciosMaples.toString());
+    _rajadosMaplesController = TextEditingController(text: widget.production.rajadosMaples.toString());
+    _descarteMaplesController = TextEditingController(text: widget.production.descarteMaples.toString());
+    
+    _extraMountsController = TextEditingController(text: widget.production.extraMounts.toString());
+    _especialMountsController = TextEditingController(text: widget.production.especialMounts.toString());
+    _primeraMountsController = TextEditingController(text: widget.production.primeraMounts.toString());
+    _segundaMountsController = TextEditingController(text: widget.production.segundaMounts.toString());
+    _terceraMountsController = TextEditingController(text: widget.production.terceraMounts.toString());
+    _cuartaMountsController = TextEditingController(text: widget.production.cuartaMounts.toString());
+    _quintaMountsController = TextEditingController(text: widget.production.quintaMounts.toString());
+    _suciosMountsController = TextEditingController(text: widget.production.suciosMounts.toString());
+    _rajadosMountsController = TextEditingController(text: widget.production.rajadosMounts.toString());
+    _descarteMountsController = TextEditingController(text: widget.production.descarteMounts.toString());
+    
     _selectedDate = widget.production.date;
   }
 
@@ -357,20 +433,45 @@ class _EditProductionDialogState extends State<EditProductionDialog> {
     _suciosController.dispose();
     _rajadosController.dispose();
     _descarteController.dispose();
+    
+    _extraMaplesController.dispose();
+    _especialMaplesController.dispose();
+    _primeraMaplesController.dispose();
+    _segundaMaplesController.dispose();
+    _terceraMaplesController.dispose();
+    _cuartaMaplesController.dispose();
+    _quintaMaplesController.dispose();
+    _suciosMaplesController.dispose();
+    _rajadosMaplesController.dispose();
+    _descarteMaplesController.dispose();
+    
+    _extraMountsController.dispose();
+    _especialMountsController.dispose();
+    _primeraMountsController.dispose();
+    _segundaMountsController.dispose();
+    _terceraMountsController.dispose();
+    _cuartaMountsController.dispose();
+    _quintaMountsController.dispose();
+    _suciosMountsController.dispose();
+    _rajadosMountsController.dispose();
+    _descarteMountsController.dispose();
+    
     super.dispose();
   }
 
   int get _total {
-    return (int.tryParse(_extraController.text) ?? 0) +
-        (int.tryParse(_especialController.text) ?? 0) +
-        (int.tryParse(_primeraController.text) ?? 0) +
-        (int.tryParse(_segundaController.text) ?? 0) +
-        (int.tryParse(_terceraController.text) ?? 0) +
-        (int.tryParse(_cuartaController.text) ?? 0) +
-        (int.tryParse(_quintaController.text) ?? 0) +
-        (int.tryParse(_suciosController.text) ?? 0) +
-        (int.tryParse(_rajadosController.text) ?? 0) +
-        (int.tryParse(_descarteController.text) ?? 0);
+    int total = 0;
+    total += (int.tryParse(_extraController.text) ?? 0) + (int.tryParse(_extraMaplesController.text) ?? 0) * MAPLE_EGGS + (int.tryParse(_extraMountsController.text) ?? 0) * MOUNT_EGGS;
+    total += (int.tryParse(_especialController.text) ?? 0) + (int.tryParse(_especialMaplesController.text) ?? 0) * MAPLE_EGGS + (int.tryParse(_especialMountsController.text) ?? 0) * MOUNT_EGGS;
+    total += (int.tryParse(_primeraController.text) ?? 0) + (int.tryParse(_primeraMaplesController.text) ?? 0) * MAPLE_EGGS + (int.tryParse(_primeraMountsController.text) ?? 0) * MOUNT_EGGS;
+    total += (int.tryParse(_segundaController.text) ?? 0) + (int.tryParse(_segundaMaplesController.text) ?? 0) * MAPLE_EGGS + (int.tryParse(_segundaMountsController.text) ?? 0) * MOUNT_EGGS;
+    total += (int.tryParse(_terceraController.text) ?? 0) + (int.tryParse(_terceraMaplesController.text) ?? 0) * MAPLE_EGGS + (int.tryParse(_terceraMountsController.text) ?? 0) * MOUNT_EGGS;
+    total += (int.tryParse(_cuartaController.text) ?? 0) + (int.tryParse(_cuartaMaplesController.text) ?? 0) * MAPLE_EGGS + (int.tryParse(_cuartaMountsController.text) ?? 0) * MOUNT_EGGS;
+    total += (int.tryParse(_quintaController.text) ?? 0) + (int.tryParse(_quintaMaplesController.text) ?? 0) * MAPLE_EGGS + (int.tryParse(_quintaMountsController.text) ?? 0) * MOUNT_EGGS;
+    total += (int.tryParse(_suciosController.text) ?? 0) + (int.tryParse(_suciosMaplesController.text) ?? 0) * MAPLE_EGGS + (int.tryParse(_suciosMountsController.text) ?? 0) * MOUNT_EGGS;
+    total += (int.tryParse(_rajadosController.text) ?? 0) + (int.tryParse(_rajadosMaplesController.text) ?? 0) * MAPLE_EGGS + (int.tryParse(_rajadosMountsController.text) ?? 0) * MOUNT_EGGS;
+    total += (int.tryParse(_descarteController.text) ?? 0) + (int.tryParse(_descarteMaplesController.text) ?? 0) * MAPLE_EGGS + (int.tryParse(_descarteMountsController.text) ?? 0) * MOUNT_EGGS;
+    return total;
   }
 
   Future<void> _selectDate() async {
@@ -405,6 +506,26 @@ class _EditProductionDialogState extends State<EditProductionDialog> {
         descarte: int.tryParse(_descarteController.text) ?? 0,
         totalHuevos: _total,
         createdAt: widget.production.createdAt,
+        extraMaples: int.tryParse(_extraMaplesController.text) ?? 0,
+        especialMaples: int.tryParse(_especialMaplesController.text) ?? 0,
+        primeraMaples: int.tryParse(_primeraMaplesController.text) ?? 0,
+        segundaMaples: int.tryParse(_segundaMaplesController.text) ?? 0,
+        terceraMaples: int.tryParse(_terceraMaplesController.text) ?? 0,
+        cuartaMaples: int.tryParse(_cuartaMaplesController.text) ?? 0,
+        quintaMaples: int.tryParse(_quintaMaplesController.text) ?? 0,
+        suciosMaples: int.tryParse(_suciosMaplesController.text) ?? 0,
+        rajadosMaples: int.tryParse(_rajadosMaplesController.text) ?? 0,
+        descarteMaples: int.tryParse(_descarteMaplesController.text) ?? 0,
+        extraMounts: int.tryParse(_extraMountsController.text) ?? 0,
+        especialMounts: int.tryParse(_especialMountsController.text) ?? 0,
+        primeraMounts: int.tryParse(_primeraMountsController.text) ?? 0,
+        segundaMounts: int.tryParse(_segundaMountsController.text) ?? 0,
+        terceraMounts: int.tryParse(_terceraMountsController.text) ?? 0,
+        cuartaMounts: int.tryParse(_cuartaMountsController.text) ?? 0,
+        quintaMounts: int.tryParse(_quintaMountsController.text) ?? 0,
+        suciosMounts: int.tryParse(_suciosMountsController.text) ?? 0,
+        rajadosMounts: int.tryParse(_rajadosMountsController.text) ?? 0,
+        descarteMounts: int.tryParse(_descarteMountsController.text) ?? 0,
       );
 
       await widget.productionService.updateProduction(updated);
@@ -442,22 +563,24 @@ class _EditProductionDialogState extends State<EditProductionDialog> {
                 child: Text(DateFormat('dd/MM/yyyy').format(_selectedDate)),
               ),
             ),
+            const SizedBox(height: 8),
+            Text('1 maple = $MAPLE_EGGS | 1 montón = $MOUNT_MAPLES maples = $MOUNT_EGGS', style: const TextStyle(fontSize: 10, color: Colors.grey)),
             const SizedBox(height: 12),
-            _buildField('Extra', _extraController),
-            _buildField('Especial', _especialController),
-            _buildField('Primera', _primeraController),
-            _buildField('Segunda', _segundaController),
-            _buildField('Tercera', _terceraController),
-            _buildField('Cuarta', _cuartaController),
-            _buildField('Quinta', _quintaController),
-            _buildField('Sucios', _suciosController),
-            _buildField('Rajados', _rajadosController),
-            _buildField('Descarte', _descarteController),
+            _buildCategoryEdit('Extra', _extraMaplesController, _extraMountsController, _extraController),
+            _buildCategoryEdit('Especial', _especialMaplesController, _especialMountsController, _especialController),
+            _buildCategoryEdit('Primera', _primeraMaplesController, _primeraMountsController, _primeraController),
+            _buildCategoryEdit('Segunda', _segundaMaplesController, _segundaMountsController, _segundaController),
+            _buildCategoryEdit('Tercera', _terceraMaplesController, _terceraMountsController, _terceraController),
+            _buildCategoryEdit('Cuarta', _cuartaMaplesController, _cuartaMountsController, _cuartaController),
+            _buildCategoryEdit('Quinta', _quintaMaplesController, _quintaMountsController, _quintaController),
+            _buildCategoryEdit('Sucios', _suciosMaplesController, _suciosMountsController, _suciosController),
+            _buildCategoryEdit('Rajados', _rajadosMaplesController, _rajadosMountsController, _rajadosController),
+            _buildCategoryEdit('Descarte', _descarteMaplesController, _descarteMountsController, _descarteController),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFFFF8C00).withOpacity( 0.2),
+                color: const Color(0xFFFF8C00).withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
@@ -486,14 +609,45 @@ class _EditProductionDialogState extends State<EditProductionDialog> {
     );
   }
 
-  Widget _buildField(String label, TextEditingController controller) {
+  Widget _buildCategoryEdit(String label, TextEditingController maplesCtrl, TextEditingController mountsCtrl, TextEditingController unitsCtrl) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: TextField(
-        controller: controller,
-        keyboardType: TextInputType.number,
-        decoration: InputDecoration(labelText: label),
-        onChanged: (_) => setState(() {}),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 70,
+            child: Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
+          ),
+          Expanded(
+            child: TextField(
+              controller: mountsCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Montón', isDense: true, contentPadding: EdgeInsets.symmetric(vertical: 8)),
+              style: const TextStyle(fontSize: 12),
+              onChanged: (_) => setState(() {}),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: TextField(
+              controller: maplesCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Maples', isDense: true, contentPadding: EdgeInsets.symmetric(vertical: 8)),
+              style: const TextStyle(fontSize: 12),
+              onChanged: (_) => setState(() {}),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: TextField(
+              controller: unitsCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Uds', isDense: true, contentPadding: EdgeInsets.symmetric(vertical: 8)),
+              style: const TextStyle(fontSize: 12),
+              onChanged: (_) => setState(() {}),
+            ),
+          ),
+        ],
       ),
     );
   }

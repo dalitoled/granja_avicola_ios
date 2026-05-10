@@ -59,6 +59,77 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _forgotPassword() async {
+    final emailController = TextEditingController(text: _emailController.text);
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Recuperar contraseña'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Se enviará un enlace de recuperación a tu correo electrónico.'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: emailController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(
+                labelText: 'Correo electrónico',
+                prefixIcon: Icon(Icons.email),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final email = emailController.text.trim();
+              if (email.isEmpty || !email.contains('@')) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Ingrese un correo válido')),
+                );
+                return;
+              }
+
+              Navigator.pop(context);
+              setState(() => _isLoading = true);
+
+              // Capturamos el messenger antes del await para evitar
+              // usar context a través de un gap asíncrono (use_build_context_synchronously)
+              final messenger = ScaffoldMessenger.of(context);
+
+              try {
+                await _authService.sendPasswordResetEmail(email);
+                if (mounted) {
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text('Enlace enviado. Revise su bandeja de entrada.'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  messenger.showSnackBar(
+                    SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+                  );
+                }
+              } finally {
+                if (mounted) setState(() => _isLoading = false);
+              }
+            },
+            child: const Text('Enviar'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -173,7 +244,15 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 8),
+                      TextButton(
+                        onPressed: _isLoading ? null : _forgotPassword,
+                        child: const Text(
+                          '¿Olvidó su contraseña?',
+                          style: TextStyle(color: Color(0xFF2E7D32)),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
                       TextButton(
                         onPressed: () {
                           Navigator.push(

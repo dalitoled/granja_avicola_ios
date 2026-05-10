@@ -5,7 +5,6 @@ import 'package:intl/intl.dart';
 import '../models/egg_production_model.dart';
 import '../services/production_service.dart';
 import '../services/lot_service.dart';
-import 'create_lot_screen.dart';
 
 class RegistroProduccionScreen extends StatefulWidget {
   const RegistroProduccionScreen({super.key});
@@ -24,7 +23,33 @@ class _RegistroProduccionScreenState extends State<RegistroProduccionScreen> {
 
   DateTime _selectedDate = DateTime.now();
 
-  final Map<String, TextEditingController> _controllers = {
+  final Map<String, TextEditingController> _unitControllers = {
+    'extra': TextEditingController(),
+    'especial': TextEditingController(),
+    'primera': TextEditingController(),
+    'segunda': TextEditingController(),
+    'tercera': TextEditingController(),
+    'cuarta': TextEditingController(),
+    'quinta': TextEditingController(),
+    'sucios': TextEditingController(),
+    'rajados': TextEditingController(),
+    'descarte': TextEditingController(),
+  };
+
+  final Map<String, TextEditingController> _mapleControllers = {
+    'extra': TextEditingController(),
+    'especial': TextEditingController(),
+    'primera': TextEditingController(),
+    'segunda': TextEditingController(),
+    'tercera': TextEditingController(),
+    'cuarta': TextEditingController(),
+    'quinta': TextEditingController(),
+    'sucios': TextEditingController(),
+    'rajados': TextEditingController(),
+    'descarte': TextEditingController(),
+  };
+
+  final Map<String, TextEditingController> _mountControllers = {
     'extra': TextEditingController(),
     'especial': TextEditingController(),
     'primera': TextEditingController(),
@@ -53,10 +78,20 @@ class _RegistroProduccionScreenState extends State<RegistroProduccionScreen> {
     {'key': 'descarte', 'label': 'Descarte', 'color': const Color(0xFF607D8B)},
   ];
 
+  static const int MAPLE_EGGS = 30;
+  static const int MOUNT_MAPLES = 10;
+  static const int MOUNT_EGGS = MAPLE_EGGS * MOUNT_MAPLES;
+
   @override
   void initState() {
     super.initState();
-    for (var controller in _controllers.values) {
+    for (var controller in _unitControllers.values) {
+      controller.addListener(_calculateTotal);
+    }
+    for (var controller in _mapleControllers.values) {
+      controller.addListener(_calculateTotal);
+    }
+    for (var controller in _mountControllers.values) {
       controller.addListener(_calculateTotal);
     }
     _checkActiveLots();
@@ -76,7 +111,15 @@ class _RegistroProduccionScreenState extends State<RegistroProduccionScreen> {
 
   @override
   void dispose() {
-    for (var controller in _controllers.values) {
+    for (var controller in _unitControllers.values) {
+      controller.removeListener(_calculateTotal);
+      controller.dispose();
+    }
+    for (var controller in _mapleControllers.values) {
+      controller.removeListener(_calculateTotal);
+      controller.dispose();
+    }
+    for (var controller in _mountControllers.values) {
       controller.removeListener(_calculateTotal);
       controller.dispose();
     }
@@ -85,9 +128,11 @@ class _RegistroProduccionScreenState extends State<RegistroProduccionScreen> {
 
   void _calculateTotal() {
     int total = 0;
-    for (var controller in _controllers.values) {
-      final value = int.tryParse(controller.text) ?? 0;
-      total += value;
+    for (var key in _unitControllers.keys) {
+      final units = int.tryParse(_unitControllers[key]!.text) ?? 0;
+      final maples = int.tryParse(_mapleControllers[key]!.text) ?? 0;
+      final mounts = int.tryParse(_mountControllers[key]!.text) ?? 0;
+      total += units + (maples * MAPLE_EGGS) + (mounts * MOUNT_EGGS);
     }
     setState(() {
       _totalHuevos = total;
@@ -108,8 +153,22 @@ class _RegistroProduccionScreenState extends State<RegistroProduccionScreen> {
     }
   }
 
+  int _getUnits(String key) => int.tryParse(_unitControllers[key]!.text) ?? 0;
+  int _getMaples(String key) => int.tryParse(_mapleControllers[key]!.text) ?? 0;
+  int _getMounts(String key) => int.tryParse(_mountControllers[key]!.text) ?? 0;
+
   Future<void> _saveProduction() async {
     if (!_formKey.currentState!.validate()) return;
+
+    if (_totalHuevos == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Debes ingresar al menos algunos huevos'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
 
     setState(() {
       _isLoading = true;
@@ -124,26 +183,46 @@ class _RegistroProduccionScreenState extends State<RegistroProduccionScreen> {
       EggProductionModel production = EggProductionModel(
         userId: user.uid,
         date: _selectedDate,
-        extra: int.tryParse(_controllers['extra']!.text) ?? 0,
-        especial: int.tryParse(_controllers['especial']!.text) ?? 0,
-        primera: int.tryParse(_controllers['primera']!.text) ?? 0,
-        segunda: int.tryParse(_controllers['segunda']!.text) ?? 0,
-        tercera: int.tryParse(_controllers['tercera']!.text) ?? 0,
-        cuarta: int.tryParse(_controllers['cuarta']!.text) ?? 0,
-        quinta: int.tryParse(_controllers['quinta']!.text) ?? 0,
-        sucios: int.tryParse(_controllers['sucios']!.text) ?? 0,
-        rajados: int.tryParse(_controllers['rajados']!.text) ?? 0,
-        descarte: int.tryParse(_controllers['descarte']!.text) ?? 0,
+        extra: _getUnits('extra'),
+        especial: _getUnits('especial'),
+        primera: _getUnits('primera'),
+        segunda: _getUnits('segunda'),
+        tercera: _getUnits('tercera'),
+        cuarta: _getUnits('cuarta'),
+        quinta: _getUnits('quinta'),
+        sucios: _getUnits('sucios'),
+        rajados: _getUnits('rajados'),
+        descarte: _getUnits('descarte'),
         totalHuevos: _totalHuevos,
         createdAt: DateTime.now(),
+        extraMaples: _getMaples('extra'),
+        especialMaples: _getMaples('especial'),
+        primeraMaples: _getMaples('primera'),
+        segundaMaples: _getMaples('segunda'),
+        terceraMaples: _getMaples('tercera'),
+        cuartaMaples: _getMaples('cuarta'),
+        quintaMaples: _getMaples('quinta'),
+        suciosMaples: _getMaples('sucios'),
+        rajadosMaples: _getMaples('rajados'),
+        descarteMaples: _getMaples('descarte'),
+        extraMounts: _getMounts('extra'),
+        especialMounts: _getMounts('especial'),
+        primeraMounts: _getMounts('primera'),
+        segundaMounts: _getMounts('segunda'),
+        terceraMounts: _getMounts('tercera'),
+        cuartaMounts: _getMounts('cuarta'),
+        quintaMounts: _getMounts('quinta'),
+        suciosMounts: _getMounts('sucios'),
+        rajadosMounts: _getMounts('rajados'),
+        descarteMounts: _getMounts('descarte'),
       );
 
       await _productionService.addProduction(production);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Producción guardada exitosamente'),
+          SnackBar(
+            content: Text('Producción guardada: $_totalHuevos huevos'),
             backgroundColor: Colors.green,
           ),
         );
@@ -165,7 +244,13 @@ class _RegistroProduccionScreenState extends State<RegistroProduccionScreen> {
   }
 
   void _clearForm() {
-    for (var controller in _controllers.values) {
+    for (var controller in _unitControllers.values) {
+      controller.clear();
+    }
+    for (var controller in _mapleControllers.values) {
+      controller.clear();
+    }
+    for (var controller in _mountControllers.values) {
       controller.clear();
     }
     setState(() {
@@ -215,179 +300,13 @@ class _RegistroProduccionScreenState extends State<RegistroProduccionScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Card(
-                  elevation: 4,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Row(
-                          children: [
-                            Icon(
-                              Icons.calendar_today,
-                              color: Color(0xFF2E7D32),
-                            ),
-                            SizedBox(width: 8),
-                            Text(
-                              'Fecha de Producción',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF2E7D32),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        InkWell(
-                          onTap: _selectDate,
-                          child: Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 16,
-                            ),
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.grey),
-                              borderRadius: BorderRadius.circular(12),
-                              color: Colors.white,
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  DateFormat(
-                                    'dd/MM/yyyy',
-                                    'es_ES',
-                                  ).format(_selectedDate),
-                                  style: const TextStyle(fontSize: 18),
-                                ),
-                                const Icon(Icons.arrow_drop_down),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                _buildDateCard(),
                 const SizedBox(height: 16),
-                Card(
-                  elevation: 4,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Row(
-                          children: [
-                            Icon(Icons.egg, color: Color(0xFF2E7D32)),
-                            SizedBox(width: 8),
-                            Text(
-                              'Categorías de Huevos',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF2E7D32),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        GridView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 2,
-                                childAspectRatio: 2.5,
-                                crossAxisSpacing: 12,
-                                mainAxisSpacing: 12,
-                              ),
-                          itemCount: _categories.length,
-                          itemBuilder: (context, index) {
-                            final category = _categories[index];
-                            return _buildInputField(
-                              category['key'],
-                              category['label'],
-                              category['color'],
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                _buildCategoriesCard(),
                 const SizedBox(height: 16),
-                Card(
-                  elevation: 4,
-                  color: const Color(0xFF2E7D32),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Total de Huevos:',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                        Text(
-                          _totalHuevos.toString(),
-                          style: const TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                _buildTotalCard(),
                 const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _saveProduction,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFFF8C00),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                    child: _isLoading
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.save, size: 24),
-                              SizedBox(width: 8),
-                              Text(
-                                'Guardar Producción',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                  ),
-                ),
+                _buildSaveButton(),
               ],
             ),
           ),
@@ -396,42 +315,50 @@ class _RegistroProduccionScreenState extends State<RegistroProduccionScreen> {
     );
   }
 
-  Widget _buildNoLotMessage() {
-    return Center(
+  Widget _buildDateCard() {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(16),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.warning_amber, size: 80, color: Colors.orange),
-            const SizedBox(height: 16),
-            const Text(
-              'No hay lotes activos',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center,
+            const Row(
+              children: [
+                Icon(Icons.calendar_today, color: Color(0xFF2E7D32)),
+                SizedBox(width: 8),
+                Text(
+                  'Fecha de Producción',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF2E7D32),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            const Text(
-              'Para registrar producción, primero debe crear un lote de gallinas.',
-              style: TextStyle(fontSize: 16, color: Colors.grey),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const CreateLotScreen()),
-                ).then((_) {
-                  _checkActiveLots();
-                });
-              },
-              icon: const Icon(Icons.add),
-              label: const Text('Crear Lote'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2E7D32),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            const SizedBox(height: 12),
+            InkWell(
+              onTap: _selectDate,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey),
+                  borderRadius: BorderRadius.circular(12),
+                  color: Colors.white,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      DateFormat('dd/MM/yyyy', 'es_ES').format(_selectedDate),
+                      style: const TextStyle(fontSize: 18),
+                    ),
+                    const Icon(Icons.arrow_drop_down),
+                  ],
+                ),
               ),
             ),
           ],
@@ -440,33 +367,324 @@ class _RegistroProduccionScreenState extends State<RegistroProduccionScreen> {
     );
   }
 
-  Widget _buildInputField(String key, String label, Color color) {
-    return TextFormField(
-      controller: _controllers[key],
-      keyboardType: TextInputType.number,
-      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: TextStyle(color: color, fontWeight: FontWeight.bold),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: color),
+  Widget _buildCategoriesCard() {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.egg, color: Color(0xFF2E7D32)),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Huevos por Categoría',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF2E7D32),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Ingresa mounts y/o unidades para cada categoría',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '1 maple = $MAPLE_EGGS huevos | 1 monton = $MOUNT_MAPLES maples = $MOUNT_EGGS huevos',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[500],
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ..._categories.map((cat) => _buildCategoryRow(
+              cat['key'] as String,
+              cat['label'] as String,
+              cat['color'] as Color,
+            )),
+          ],
         ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: color, width: 2),
-        ),
-        filled: true,
-        fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       ),
-      validator: (value) {
-        if (value == null || value.isEmpty) {
-          return null;
-        }
-        return null;
-      },
+    );
+  }
+
+  Widget _buildCategoryRow(String key, String label, Color color) {
+    final units = _getUnits(key);
+    final maples = _getMaples(key);
+    final mounts = _getMounts(key);
+    final total = units + (maples * MAPLE_EGGS) + (mounts * MOUNT_EGGS);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '$total huevos',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  controller: _mountControllers[key],
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                  decoration: InputDecoration(
+                    labelText: 'Montón',
+                    labelStyle: TextStyle(
+                      color: color,
+                      fontSize: 10,
+                    ),
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextFormField(
+                  controller: _mapleControllers[key],
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                  decoration: InputDecoration(
+                    labelText: 'Maples',
+                    labelStyle: TextStyle(
+                      color: color,
+                      fontSize: 10,
+                    ),
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                '+',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextFormField(
+                  controller: _unitControllers[key],
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                  decoration: InputDecoration(
+                    labelText: 'Unidades',
+                    labelStyle: TextStyle(
+                      color: color,
+                      fontSize: 10,
+                    ),
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (maples > 0 || mounts > 0 || units > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                _buildCalculationText(maples, mounts, units),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[600],
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  String _buildCalculationText(int maples, int mounts, int units) {
+    final fromMaples = maples * MAPLE_EGGS;
+    final fromMounts = mounts * MOUNT_EGGS;
+    final parts = <String>[];
+    if (mounts > 0) parts.add('$mounts×$MOUNT_EGGS=$fromMounts');
+    if (maples > 0) parts.add('$maples×$MAPLE_EGGS=$fromMaples');
+    if (units > 0) parts.add('$units');
+    return parts.join(' + ');
+  }
+
+  Widget _buildTotalCard() {
+    return Card(
+      elevation: 4,
+      color: const Color(0xFF2E7D32),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Total de Huevos:',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            Text(
+              _totalHuevos.toString(),
+              style: const TextStyle(
+                fontSize: 32,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSaveButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 56,
+      child: ElevatedButton(
+        onPressed: _isLoading ? null : _saveProduction,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF2E7D32),
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+        child: _isLoading
+            ? const CircularProgressIndicator(color: Colors.white)
+            : const Text(
+                'Guardar Producción',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+      ),
+    );
+  }
+
+  Widget _buildNoLotMessage() {
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.warning_amber_rounded,
+            size: 80,
+            color: Colors.orange[700],
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            'No hay lotes activos',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF2E7D32),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Para registrar producción, necesitas tener al menos un lote de gallinas activo.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey[700],
+            ),
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+            },
+            icon: const Icon(Icons.arrow_back),
+            label: const Text('Volver al Dashboard'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2E7D32),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

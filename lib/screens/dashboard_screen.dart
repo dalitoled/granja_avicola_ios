@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import '../models/feed_consumption_model.dart';
 import '../services/feed_service.dart';
+import '../providers/connectivity_provider.dart';
+import '../models/role_model.dart';
+import '../utils/responsive.dart';
 import 'login_screen.dart';
 import 'registro_produccion_screen.dart';
 import 'historial_produccion_screen.dart';
@@ -30,6 +34,9 @@ import 'farm_alerts_screen.dart';
 import 'production_prediction_screen.dart';
 import '../services/admin_service.dart';
 import 'authorization_codes_screen.dart';
+import 'user_management_screen.dart';
+import '../services/cleanup_service.dart';
+
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -44,6 +51,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final AlertService _alertService = AlertService();
   final AdminService _adminService = AdminService();
+  
+  static const String ADMIN_EMAIL = 'danielledezmad9@gmail.com';
+  
   String _userEmail = '';
   int _todayEggs = 0;
   double _todayFeed = 0;
@@ -51,6 +61,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   double _gramsPerEgg = 0;
   bool _isLoadingIndicators = true;
   bool _isAdmin = false;
+  bool _isSuperAdmin = false;
+  AppRole _userRole = AppRole.operador; // Por defecto rol con menos permisos
   AlertSeverity _alertStatus = AlertSeverity.normal;
   int _alertCount = 0;
 
@@ -67,11 +79,134 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    final isAdmin = await _adminService.isAdmin(user.uid);
+    bool hasAdminRole = false;
+    bool hasSuperAdminRole = false;
+    AppRole roleAssigned = AppRole.operador; // Por defecto
+    
+    // Verificar por email del Super Admin
+    if (user.email?.toLowerCase() == ADMIN_EMAIL.toLowerCase()) {
+      hasSuperAdminRole = true;
+      hasAdminRole = true;
+      roleAssigned = AppRole.superAdmin;
+    }
+    
+    // Verificar rol en el documento del usuario
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get();
+    
+    if (userDoc.exists) {
+      final role = userDoc.data()?['role'];
+      
+      final parsedRole = RolePermissions.roleFromString(role as String?);
+      if (parsedRole != null) {
+        roleAssigned = parsedRole;
+      }
+      
+      if (roleAssigned == AppRole.superAdmin) {
+        hasSuperAdminRole = true;
+        hasAdminRole = true;
+      } else if (roleAssigned == AppRole.admin) {
+        hasAdminRole = true;
+      }
+    }
+    
+    // También verificar en la colección admins (legacy)
+    final isLegacyAdmin = await _adminService.isAdmin(user.uid);
+    if (isLegacyAdmin && roleAssigned == AppRole.operador) {
+       roleAssigned = AppRole.admin;
+    }
+    
     if (mounted) {
       setState(() {
-        _isAdmin = isAdmin;
+        _userRole = roleAssigned;
+        _isAdmin = hasAdminRole || isLegacyAdmin;
+        _isSuperAdmin = hasSuperAdminRole || (isLegacyAdmin && hasAdminRole);
       });
+    }
+  }
+
+  // --- Helpers de permisos basados en rbca ---
+  bool _canShowCodes() => _userRole == AppRole.superAdmin;
+  bool _canShowCleanup() => _userRole == AppRole.superAdmin;
+  bool _canShowUserManagement() => _userRole == AppRole.superAdmin || _userRole == AppRole.admin;
+  bool _canShowFarmProfile() => _userRole == AppRole.superAdmin || _userRole == AppRole.admin;
+
+  bool _canShowLotes() => _userRole != AppRole.operador;
+  bool _canShowSalud() => _userRole != AppRole.operador;
+  // Operario puede ver alimento, produccion y mortalidad
+  bool _canShowAlimento() => true; 
+  bool _canShowProduccion() => true; 
+  bool _canShowMortalidad() => true; 
+  
+  bool _canShowVentas() => _userRole != AppRole.operador;
+  bool _canShowGestion() => _userRole != AppRole.operador;
+  bool _canShowMonitoreo() => _userRole != AppRole.operador;
+
+  Future<void> _showCleanupDialog() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Limpiar Datos'),
+        content: const Text(
+          '¿Estás seguro de eliminar todos los datos de simulación? '
+          'Esto eliminará: producción, ventas, consumo, mortalidad, '
+          'gastos, inventario y lotes generados por la simulación.\n\n'
+          'Esta acción no se puede deshacer.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && mounted) {
+      setState(() {
+        _isLoadingIndicators = true;
+      });
+
+      try {
+        final cleanupService = CleanupService();
+        await cleanupService.deleteSimulationData(user.uid);
+        
+        await _loadTodayIndicators();
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Datos de simulación eliminados'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoadingIndicators = false;
+          });
+        }
+      }
     }
   }
 
@@ -196,6 +331,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
         backgroundColor: const Color(0xFF2E7D32),
         foregroundColor: Colors.white,
         actions: [
+          Consumer<ConnectivityProvider>(
+            builder: (context, connectivity, child) {
+              return IconButton(
+                icon: Icon(
+                  connectivity.isOnline ? Icons.cloud_done : Icons.cloud_off,
+                  color: connectivity.isOnline ? Colors.white : Colors.orange,
+                ),
+                onPressed: connectivity.isOnline ? null : () => connectivity.syncNow(),
+                tooltip: connectivity.isOnline 
+                    ? 'Conectado' 
+                    : 'Sin conexión - ${connectivity.pendingSyncCount} pendiente(s)',
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: _logout,
@@ -205,7 +354,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
+          padding: Responsive.responsivePadding(context),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -260,25 +409,91 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
               ),
-              if (_isAdmin) ...[
+              if (_canShowUserManagement()) ...[
                 const SizedBox(height: 16),
+                Column(
+                  children: [
+                    if (_canShowCodes()) ...[
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const AuthorizationCodesScreen(),
+                            ),
+                          ),
+                          icon: const Icon(
+                            Icons.admin_panel_settings,
+                            color: Colors.purple,
+                          ),
+                          label: const Text('Códigos de Instalación'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.purple,
+                            side: const BorderSide(color: Colors.purple),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const UserManagementScreen(),
+                          ),
+                        ),
+                        icon: const Icon(
+                          Icons.people,
+                          color: Colors.blue,
+                        ),
+                        label: const Text('Gestión de Usuarios'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.blue,
+                          side: const BorderSide(color: Colors.blue),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 16),
+              if (_canShowFarmProfile()) ...[
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
                     onPressed: () => Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const AuthorizationCodesScreen(),
+                        builder: (context) => const FarmProfileScreen(),
                       ),
                     ),
-                    icon: const Icon(
-                      Icons.admin_panel_settings,
-                      color: Colors.purple,
-                    ),
-                    label: const Text('Códigos de Autorización'),
+                    icon: const Icon(Icons.agriculture, color: Color(0xFF2E7D32)),
+                    label: const Text('Perfil de Granja'),
+                  ),
+                ),
+              ],
+              if (_canShowCleanup()) ...[
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _showCleanupDialog(),
+                    icon: const Icon(Icons.delete_forever, color: Colors.red),
+                    label: const Text('Limpiar Datos de Simulación'),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.purple,
-                      side: const BorderSide(color: Colors.purple),
+                      foregroundColor: Colors.red,
+                      side: const BorderSide(color: Colors.red),
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -287,20 +502,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
               ],
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const FarmProfileScreen(),
-                    ),
-                  ),
-                  icon: const Icon(Icons.agriculture, color: Color(0xFF2E7D32)),
-                  label: const Text('Perfil de Granja'),
-                ),
-              ),
               const SizedBox(height: 24),
               const Text(
                 'Menú Principal',
@@ -310,297 +511,305 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   color: Color(0xFF2E7D32),
                 ),
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: Responsive.responsiveValue(context, mobile: 12, tablet: 16, desktop: 20)),
 
               // 1. CONFIGURACIÓN - Lotes (Base de todo)
-              _buildSectionHeader('1. Configuración - Lotes', Icons.egg_alt),
-              _buildCategoryRow([
-                _buildMenuCardCompact(
-                  icon: Icons.add_box,
-                  title: 'Crear Lote',
-                  color: const Color(0xFFE91E63),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const CreateLotScreen(),
+              if (_canShowLotes()) ...[
+                _buildSectionHeader('1. Configuración - Lotes', Icons.egg_alt),
+                _buildCategoryRow([
+                  _buildMenuCardCompact(
+                    icon: Icons.add_box,
+                    title: 'Crear Lote',
+                    color: const Color(0xFFE91E63),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const CreateLotScreen(),
+                      ),
                     ),
                   ),
-                ),
-                _buildMenuCardCompact(
-                  icon: Icons.list,
-                  title: 'Control Lotes',
-                  color: const Color(0xFFFF5722),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const LotListScreen(),
+                  _buildMenuCardCompact(
+                    icon: Icons.list,
+                    title: 'Control Lotes',
+                    color: const Color(0xFFFF5722),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const LotListScreen(),
+                      ),
                     ),
                   ),
-                ),
-              ]),
-
-              const SizedBox(height: 20),
+                ]),
+                const SizedBox(height: 20),
+              ],
 
               // 2. SALUD - Vacunación (Antes que nada)
-              _buildSectionHeader('2. Salud - Vacunación', Icons.vaccines),
-              _buildCategoryRow([
-                _buildMenuCardCompact(
-                  icon: Icons.add,
-                  title: 'Registrar',
-                  color: const Color(0xFF00BCD4),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const RegisterVaccinationScreen(),
+              if (_canShowSalud()) ...[
+                _buildSectionHeader('2. Salud - Vacunación', Icons.vaccines),
+                _buildCategoryRow([
+                  _buildMenuCardCompact(
+                    icon: Icons.add,
+                    title: 'Registrar',
+                    color: const Color(0xFF00BCD4),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const RegisterVaccinationScreen(),
+                      ),
                     ),
                   ),
-                ),
-                _buildMenuCardCompact(
-                  icon: Icons.history,
-                  title: 'Historial',
-                  color: const Color(0xFF009688),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const VaccinationHistoryScreen(),
+                  _buildMenuCardCompact(
+                    icon: Icons.history,
+                    title: 'Historial',
+                    color: const Color(0xFF009688),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const VaccinationHistoryScreen(),
+                      ),
                     ),
                   ),
-                ),
-              ]),
-              _buildCategoryRow([
-                _buildMenuCardCompact(
-                  icon: Icons.calendar_month,
-                  title: 'Calendario',
-                  color: const Color(0xFF3F51B5),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const VaccinationCalendarScreen(),
+                ]),
+                _buildCategoryRow([
+                  _buildMenuCardCompact(
+                    icon: Icons.calendar_month,
+                    title: 'Calendario',
+                    color: const Color(0xFF3F51B5),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const VaccinationCalendarScreen(),
+                      ),
                     ),
                   ),
-                ),
-              ]),
-
-              const SizedBox(height: 20),
+                ]),
+                const SizedBox(height: 20),
+              ],
 
               // 3. ALIMENTO - Inventario primero, luego Consumo
-              _buildSectionHeader(
-                '3. Alimento - Inventario',
-                Icons.inventory_2,
-              ),
-              _buildCategoryRow([
-                _buildMenuCardCompact(
-                  icon: Icons.inventory_2,
-                  title: 'Inventario',
-                  color: const Color(0xFF607D8B),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const FeedInventoryScreen(),
+              if (_canShowAlimento()) ...[
+                _buildSectionHeader(
+                  '3. Alimento - Inventario',
+                  Icons.inventory_2,
+                ),
+                _buildCategoryRow([
+                  _buildMenuCardCompact(
+                    icon: Icons.inventory_2,
+                    title: 'Inventario',
+                    color: const Color(0xFF607D8B),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const FeedInventoryScreen(),
+                      ),
                     ),
                   ),
-                ),
-              ]),
-
-              const SizedBox(height: 20),
-
-              // 4. CONSUMO DE ALIMENTO (Requiere inventario)
-              _buildSectionHeader('4. Alimento - Consumo', Icons.restaurant),
-              _buildCategoryRow([
-                _buildMenuCardCompact(
-                  icon: Icons.restaurant_menu,
-                  title: 'Registrar',
-                  color: const Color(0xFF795548),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const FeedConsumptionScreen(),
+                ]),
+                const SizedBox(height: 20),
+                
+                // 4. CONSUMO DE ALIMENTO (Requiere inventario)
+                _buildSectionHeader('4. Alimento - Consumo', Icons.restaurant),
+                _buildCategoryRow([
+                  _buildMenuCardCompact(
+                    icon: Icons.restaurant_menu,
+                    title: 'Registrar',
+                    color: const Color(0xFF795548),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const FeedConsumptionScreen(),
+                      ),
                     ),
                   ),
-                ),
-                _buildMenuCardCompact(
-                  icon: Icons.history,
-                  title: 'Historial',
-                  color: const Color(0xFFA0522D),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const FeedHistoryScreen(),
+                  _buildMenuCardCompact(
+                    icon: Icons.history,
+                    title: 'Historial',
+                    color: const Color(0xFFA0522D),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const FeedHistoryScreen(),
+                      ),
                     ),
                   ),
-                ),
-              ]),
-
-              const SizedBox(height: 20),
+                ]),
+                const SizedBox(height: 20),
+              ],
 
               // 5. PRODUCCIÓN (Requiere lotes y alimento)
-              _buildSectionHeader('5. Producción de Huevos', Icons.egg),
-              _buildCategoryRow([
-                _buildMenuCardCompact(
-                  icon: Icons.add_circle,
-                  title: 'Registrar',
-                  color: const Color(0xFFFF8C00),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const RegistroProduccionScreen(),
+              if (_canShowProduccion()) ...[
+                _buildSectionHeader('5. Producción de Huevos', Icons.egg),
+                _buildCategoryRow([
+                  _buildMenuCardCompact(
+                    icon: Icons.add_circle,
+                    title: 'Registrar',
+                    color: const Color(0xFFFF8C00),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const RegistroProduccionScreen(),
+                      ),
                     ),
                   ),
-                ),
-                _buildMenuCardCompact(
-                  icon: Icons.history,
-                  title: 'Historial',
-                  color: const Color(0xFF8BC34A),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const HistorialProduccionScreen(),
+                  _buildMenuCardCompact(
+                    icon: Icons.history,
+                    title: 'Historial',
+                    color: const Color(0xFF8BC34A),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const HistorialProduccionScreen(),
+                      ),
                     ),
                   ),
-                ),
-              ]),
-              _buildCategoryRow([
-                _buildMenuCardCompact(
-                  icon: Icons.trending_up,
-                  title: 'Eficiencia',
-                  color: const Color(0xFF00BCD4),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const ProductionEfficiencyScreen(),
+                ]),
+                _buildCategoryRow([
+                  _buildMenuCardCompact(
+                    icon: Icons.trending_up,
+                    title: 'Eficiencia',
+                    color: const Color(0xFF00BCD4),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ProductionEfficiencyScreen(),
+                      ),
                     ),
                   ),
-                ),
-                _buildMenuCardCompact(
-                  icon: Icons.auto_graph,
-                  title: 'Predicción',
-                  color: const Color(0xFF3F51B5),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const ProductionPredictionScreen(),
+                  _buildMenuCardCompact(
+                    icon: Icons.auto_graph,
+                    title: 'Predicción',
+                    color: const Color(0xFF3F51B5),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ProductionPredictionScreen(),
+                      ),
                     ),
                   ),
-                ),
-              ]),
-
-              const SizedBox(height: 20),
+                ]),
+                const SizedBox(height: 20),
+              ],
 
               // 6. VENTAS (Después de producir)
-              _buildSectionHeader('6. Ventas de Huevos', Icons.sell),
-              _buildCategoryRow([
-                _buildMenuCardCompact(
-                  icon: Icons.add_shopping_cart,
-                  title: 'Registrar',
-                  color: const Color(0xFF4CAF50),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const RegisterSaleScreen(),
+              if (_canShowVentas()) ...[
+                _buildSectionHeader('6. Ventas de Huevos', Icons.sell),
+                _buildCategoryRow([
+                  _buildMenuCardCompact(
+                    icon: Icons.add_shopping_cart,
+                    title: 'Registrar',
+                    color: const Color(0xFF4CAF50),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const RegisterSaleScreen(),
+                      ),
                     ),
                   ),
-                ),
-                _buildMenuCardCompact(
-                  icon: Icons.point_of_sale,
-                  title: 'Historial',
-                  color: const Color(0xFF009688),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const SalesHistoryScreen(),
+                  _buildMenuCardCompact(
+                    icon: Icons.point_of_sale,
+                    title: 'Historial',
+                    color: const Color(0xFF009688),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SalesHistoryScreen(),
+                      ),
                     ),
                   ),
-                ),
-              ]),
-
-              const SizedBox(height: 20),
+                ]),
+                const SizedBox(height: 20),
+              ],
 
               // 7. MORTALIDAD
-              _buildSectionHeader('7. Mortalidad', Icons.health_and_safety),
-              _buildCategoryRow([
-                _buildMenuCardCompact(
-                  icon: Icons.warning,
-                  title: 'Registrar',
-                  color: const Color(0xFFB71C1C),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const RegisterMortalityScreen(),
+              if (_canShowMortalidad()) ...[
+                _buildSectionHeader('7. Mortalidad', Icons.health_and_safety),
+                _buildCategoryRow([
+                  _buildMenuCardCompact(
+                    icon: Icons.warning,
+                    title: 'Registrar',
+                    color: const Color(0xFFB71C1C),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const RegisterMortalityScreen(),
+                      ),
                     ),
                   ),
-                ),
-                _buildMenuCardCompact(
-                  icon: Icons.local_hospital,
-                  title: 'Historial',
-                  color: const Color(0xFF795548),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const MortalityHistoryScreen(),
+                  _buildMenuCardCompact(
+                    icon: Icons.local_hospital,
+                    title: 'Historial',
+                    color: const Color(0xFF795548),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const MortalityHistoryScreen(),
+                      ),
                     ),
                   ),
-                ),
-              ]),
-
-              const SizedBox(height: 20),
+                ]),
+                const SizedBox(height: 20),
+              ],
 
               // 8. GESTIÓN
-              _buildSectionHeader('8. Gestión - Gastos', Icons.business),
-              _buildCategoryRow([
-                _buildMenuCardCompact(
-                  icon: Icons.receipt_long,
-                  title: 'Gastos',
-                  color: const Color(0xFFE53935),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const ExpenseHistoryScreen(),
+              if (_canShowGestion()) ...[
+                _buildSectionHeader('8. Gestión - Gastos', Icons.business),
+                _buildCategoryRow([
+                  _buildMenuCardCompact(
+                    icon: Icons.receipt_long,
+                    title: 'Gastos',
+                    color: const Color(0xFFE53935),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ExpenseHistoryScreen(),
+                      ),
                     ),
                   ),
-                ),
-                _buildMenuCardCompact(
-                  icon: Icons.analytics,
-                  title: 'Reportes',
-                  color: const Color(0xFF9C27B0),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const ReportsScreen(),
+                  _buildMenuCardCompact(
+                    icon: Icons.analytics,
+                    title: 'Reportes',
+                    color: const Color(0xFF9C27B0),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ReportsScreen(),
+                      ),
                     ),
                   ),
-                ),
-              ]),
-
-              const SizedBox(height: 20),
+                ]),
+                const SizedBox(height: 20),
+              ],
 
               // 9. MONITOREO - Dashboard y Alertas
-              _buildSectionHeader('9. Monitoreo', Icons.monitor_heart),
-              _buildCategoryRow([
-                _buildMenuCardCompact(
-                  icon: Icons.dashboard,
-                  title: 'Dashboard',
-                  color: const Color(0xFF2E7D32),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const SmartDashboardScreen(),
+              if (_canShowMonitoreo()) ...[
+                _buildSectionHeader('9. Monitoreo', Icons.monitor_heart),
+                _buildCategoryRow([
+                  _buildMenuCardCompact(
+                    icon: Icons.dashboard,
+                    title: 'Dashboard',
+                    color: const Color(0xFF2E7D32),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SmartDashboardScreen(),
+                      ),
                     ),
                   ),
-                ),
-                _buildMenuCardCompact(
-                  icon: Icons.notifications_active,
-                  title: 'Alertas',
-                  color: Colors.orange,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const FarmAlertsScreen(),
+                  _buildMenuCardCompact(
+                    icon: Icons.notifications_active,
+                    title: 'Alertas',
+                    color: Colors.orange,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const FarmAlertsScreen(),
+                      ),
                     ),
                   ),
-                ),
-              ]),
+                ]),
+                const SizedBox(height: 24),
+              ],
 
-              const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
@@ -679,7 +888,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [color, color.withOpacity( 0.8)],
+              colors: [color, color.withValues(alpha: 0.8)],
             ),
           ),
           child: Row(
@@ -810,9 +1019,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       padding: const EdgeInsets.all(12),
       margin: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: color.withOpacity( 0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity( 0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Column(
         children: [
@@ -853,7 +1062,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [color, color.withOpacity( 0.7)],
+              colors: [color, color.withValues(alpha: 0.7)],
             ),
           ),
           child: Column(
@@ -911,7 +1120,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity( 0.2),
+            color: Colors.white.withValues(alpha: 0.2),
             shape: BoxShape.circle,
           ),
           child: Icon(icon, color: color, size: 24),

@@ -1,14 +1,36 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/hen_mortality_model.dart';
+import 'sync_service.dart';
 
 class MortalityService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final SyncService _syncService = SyncService.instance;
+
+  static const String _collection = 'mortalidad_gallinas';
 
   Future<String> addMortalityRecord(HenMortalityModel record) async {
     try {
-      DocumentReference docRef = await _firestore
-          .collection('mortalidad_gallinas')
-          .add({
+      if (_syncService.isOnline) {
+        DocumentReference docRef = await _firestore
+            .collection(_collection)
+            .add({
+              'userId': record.userId,
+              'lotId': record.lotId,
+              'lotNumber': record.lotNumber,
+              'date': record.date.toIso8601String(),
+              'deadHens': record.deadHens,
+              'cause': record.cause,
+              'notes': record.notes,
+              'createdAt': record.createdAt.toIso8601String(),
+            });
+
+        return docRef.id;
+      } else {
+        final tempId = 'pending_${DateTime.now().millisecondsSinceEpoch}';
+        await _syncService.saveForLaterSync(
+          collection: _collection,
+          documentId: tempId,
+          data: {
             'userId': record.userId,
             'lotId': record.lotId,
             'lotNumber': record.lotNumber,
@@ -17,38 +39,72 @@ class MortalityService {
             'cause': record.cause,
             'notes': record.notes,
             'createdAt': record.createdAt.toIso8601String(),
-          });
-
-      return docRef.id;
+          },
+          operation: 'create',
+        );
+        return tempId;
+      }
     } catch (e) {
-      throw 'Error al guardar el registro de mortalidad: $e';
+      final tempId = 'pending_${DateTime.now().millisecondsSinceEpoch}';
+      await _syncService.saveForLaterSync(
+        collection: _collection,
+        documentId: tempId,
+        data: {
+          'userId': record.userId,
+          'lotId': record.lotId,
+          'lotNumber': record.lotNumber,
+          'date': record.date.toIso8601String(),
+          'deadHens': record.deadHens,
+          'cause': record.cause,
+          'notes': record.notes,
+          'createdAt': record.createdAt.toIso8601String(),
+        },
+        operation: 'create',
+      );
+      return tempId;
     }
   }
 
   Future<List<HenMortalityModel>> getMortalityByUser(String userId) async {
+    if (_syncService.isOnline) {
+      try {
+        QuerySnapshot querySnapshot = await _firestore
+            .collection(_collection)
+            .where('userId', isEqualTo: userId)
+            .get();
+
+        List<HenMortalityModel> records = querySnapshot.docs.map((doc) {
+          Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+          data['id'] = doc.id;
+          return HenMortalityModel.fromMap(data);
+        }).toList();
+
+        records.sort((a, b) => b.date.compareTo(a.date));
+        return records;
+      } catch (e) {
+        return await _getCachedMortality(userId);
+      }
+    } else {
+      return await _getCachedMortality(userId);
+    }
+  }
+
+  Future<List<HenMortalityModel>> _getCachedMortality(String userId) async {
     try {
-      QuerySnapshot querySnapshot = await _firestore
-          .collection('mortalidad_gallinas')
-          .where('userId', isEqualTo: userId)
-          .get();
-
-      List<HenMortalityModel> records = querySnapshot.docs.map((doc) {
-        Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-        data['id'] = doc.id;
-        return HenMortalityModel.fromMap(data);
-      }).toList();
-
-      records.sort((a, b) => b.date.compareTo(a.date));
-      return records;
+      final cached = await _syncService.getCachedData(
+        collection: _collection,
+        userId: userId,
+      );
+      return cached.map((data) => HenMortalityModel.fromMap(data)).toList();
     } catch (e) {
-      throw 'Error al obtener los registros de mortalidad: $e';
+      return [];
     }
   }
 
   Future<List<HenMortalityModel>> getMortalityByLot(String lotId) async {
     try {
       QuerySnapshot querySnapshot = await _firestore
-          .collection('mortalidad_gallinas')
+          .collection(_collection)
           .where('lotId', isEqualTo: lotId)
           .get();
 
@@ -61,14 +117,14 @@ class MortalityService {
       records.sort((a, b) => b.date.compareTo(a.date));
       return records;
     } catch (e) {
-      throw 'Error al obtener los registros de mortalidad: $e';
+      return [];
     }
   }
 
   Future<int> getTotalMortalityByLot(String lotId) async {
     try {
       QuerySnapshot querySnapshot = await _firestore
-          .collection('mortalidad_gallinas')
+          .collection(_collection)
           .where('lotId', isEqualTo: lotId)
           .get();
 
@@ -86,7 +142,7 @@ class MortalityService {
   Future<Map<String, int>> getMortalityStatsByUser(String userId) async {
     try {
       QuerySnapshot querySnapshot = await _firestore
-          .collection('mortalidad_gallinas')
+          .collection(_collection)
           .where('userId', isEqualTo: userId)
           .get();
 
@@ -111,24 +167,66 @@ class MortalityService {
 
   Future<void> deleteMortality(String mortalityId) async {
     try {
-      await _firestore.collection('mortalidad_gallinas').doc(mortalityId).delete();
+      if (_syncService.isOnline) {
+        await _firestore.collection(_collection).doc(mortalityId).delete();
+      } else {
+        await _syncService.saveForLaterSync(
+          collection: _collection,
+          documentId: mortalityId,
+          data: {},
+          operation: 'delete',
+        );
+      }
     } catch (e) {
-      throw 'Error al eliminar el registro: $e';
+      await _syncService.saveForLaterSync(
+        collection: _collection,
+        documentId: mortalityId,
+        data: {},
+        operation: 'delete',
+      );
     }
   }
 
   Future<void> updateMortality(HenMortalityModel record) async {
     try {
-      await _firestore.collection('mortalidad_gallinas').doc(record.id).update({
-        'lotId': record.lotId,
-        'lotNumber': record.lotNumber,
-        'date': record.date.toIso8601String(),
-        'deadHens': record.deadHens,
-        'cause': record.cause,
-        'notes': record.notes,
-      });
+      if (_syncService.isOnline) {
+        await _firestore.collection(_collection).doc(record.id).update({
+          'lotId': record.lotId,
+          'lotNumber': record.lotNumber,
+          'date': record.date.toIso8601String(),
+          'deadHens': record.deadHens,
+          'cause': record.cause,
+          'notes': record.notes,
+        });
+      } else {
+        await _syncService.saveForLaterSync(
+          collection: _collection,
+          documentId: record.id,
+          data: {
+            'lotId': record.lotId,
+            'lotNumber': record.lotNumber,
+            'date': record.date.toIso8601String(),
+            'deadHens': record.deadHens,
+            'cause': record.cause,
+            'notes': record.notes,
+          },
+          operation: 'update',
+        );
+      }
     } catch (e) {
-      throw 'Error al actualizar el registro: $e';
+      await _syncService.saveForLaterSync(
+        collection: _collection,
+        documentId: record.id,
+        data: {
+          'lotId': record.lotId,
+          'lotNumber': record.lotNumber,
+          'date': record.date.toIso8601String(),
+          'deadHens': record.deadHens,
+          'cause': record.cause,
+          'notes': record.notes,
+        },
+        operation: 'update',
+      );
     }
   }
 }

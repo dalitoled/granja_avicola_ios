@@ -5,31 +5,31 @@ class FarmSimulationService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final Random _random = Random();
 
-  static const int SIMULATION_DAYS = 7;
-  static const int INITIAL_HENS = 1000;
+  static const int SIMULATION_DAYS = 90;
+  static const int INITIAL_HENS = 5000;
   static const double MIN_PRODUCTION_RATE = 0.85;
   static const double MAX_PRODUCTION_RATE = 0.92;
 
-  static const double MIN_FEED_CONSUMPTION = 110;
-  static const double MAX_FEED_CONSUMPTION = 130;
+  static const double MIN_FEED_CONSUMPTION = 550;
+  static const double MAX_FEED_CONSUMPTION = 650;
   static const double MIN_FEED_PRICE = 3.10;
   static const double MAX_FEED_PRICE = 3.40;
 
-  static const double MIN_EGGS_SOLD = 750;
-  static const double MAX_EGGS_SOLD = 900;
+  static const double MIN_EGGS_SOLD = 3800;
+  static const double MAX_EGGS_SOLD = 4500;
   static const double MIN_EGG_PRICE = 0.75;
   static const double MAX_EGG_PRICE = 1.00;
 
   static const double MORTALITY_PROBABILITY = 0.25;
-  static const int MORTALITY_MIN = 1;
-  static const int MORTALITY_MAX = 2;
+  static const int MORTALITY_MIN = 3;
+  static const int MORTALITY_MAX = 8;
 
   static const double EXPENSE_PROBABILITY = 0.15;
   static const double MIN_EXPENSE = 50;
   static const double MAX_EXPENSE = 400;
 
-  static const double INITIAL_FEED_STOCK = 2000;
-  static const double FEED_PURCHASE_AMOUNT = 2000;
+  static const double INITIAL_FEED_STOCK = 10000;
+  static const double FEED_PURCHASE_AMOUNT = 5000;
   static const int FEED_PURCHASE_INTERVAL = 15;
 
   String? _userId;
@@ -89,13 +89,15 @@ class FarmSimulationService {
             .round();
 
     if (dayNumber == 25) {
-      baseProduction = 820;
+      baseProduction = (_currentHens * 0.85).round();
     } else if (dayNumber == 70) {
-      baseProduction = 920;
+      baseProduction = (_currentHens * 0.92).round();
     }
 
-    int variation = _random.nextInt(31) - 15;
-    return (baseProduction + variation).clamp(850, 920);
+    int variation = _random.nextInt(201) - 100;
+    int minProduction = (_currentHens * MIN_PRODUCTION_RATE).round();
+    int maxProduction = (_currentHens * MAX_PRODUCTION_RATE).round();
+    return (baseProduction + variation).clamp(minProduction, maxProduction);
   }
 
   Map<String, int> _distributeEggs(int totalEggs) {
@@ -116,6 +118,8 @@ class FarmSimulationService {
   Future<void> _generateDailyProduction(DateTime date, int dayNumber) async {
     int totalEggs = _getDailyProductionTarget(dayNumber);
     Map<String, int> distribution = _distributeEggs(totalEggs);
+    int maples = _random.nextInt(5);
+    int mounts = _random.nextInt(2);
 
     await _firestore.collection('produccion_diaria').add({
       'userId': _userId,
@@ -132,6 +136,26 @@ class FarmSimulationService {
       'descarte': distribution['descarte'],
       'totalHuevos': totalEggs,
       'createdAt': DateTime.now().toIso8601String(),
+      'extraMaples': _random.nextInt(3),
+      'especialMaples': _random.nextInt(5),
+      'primeraMaples': _random.nextInt(8),
+      'segundaMaples': _random.nextInt(4),
+      'terceraMaples': _random.nextInt(2),
+      'cuartaMaples': _random.nextInt(1),
+      'quintaMaples': 0,
+      'suciosMaples': 0,
+      'rajadosMaples': 0,
+      'descarteMaples': 0,
+      'extraMounts': _random.nextInt(1),
+      'especialMounts': _random.nextInt(1),
+      'primeraMounts': _random.nextInt(2),
+      'segundaMounts': _random.nextInt(1),
+      'terceraMounts': 0,
+      'cuartaMounts': 0,
+      'quintaMounts': 0,
+      'suciosMounts': 0,
+      'rajadosMounts': 0,
+      'descarteMounts': 0,
     });
   }
 
@@ -152,6 +176,7 @@ class FarmSimulationService {
       'feedKg': double.parse(feedKg.toStringAsFixed(2)),
       'pricePerKg': double.parse(pricePerKg.toStringAsFixed(2)),
       'feedCost': double.parse(feedCost.toStringAsFixed(2)),
+      'feedType': 'Postura',
       'createdAt': DateTime.now().toIso8601String(),
     });
   }
@@ -162,14 +187,17 @@ class FarmSimulationService {
             .round();
 
     if (dayNumber == 25) {
-      eggsSold = 700;
+      eggsSold = (_currentHens * 0.80).round();
     } else if (dayNumber == 70) {
-      eggsSold = 880;
+      eggsSold = (_currentHens * 0.88).round();
     }
 
     double avgPrice =
         MIN_EGG_PRICE + _random.nextDouble() * (MAX_EGG_PRICE - MIN_EGG_PRICE);
     double totalIncome = eggsSold * avgPrice;
+
+    int maplesSold = (eggsSold / 30).floor();
+    int extraMaples = eggsSold % 30;
 
     await _firestore.collection('ventas_huevos').add({
       'userId': _userId,
@@ -178,6 +206,17 @@ class FarmSimulationService {
       'pricePerEgg': double.parse(avgPrice.toStringAsFixed(2)),
       'totalIncome': double.parse(totalIncome.toStringAsFixed(2)),
       'createdAt': DateTime.now().toIso8601String(),
+      'isByMount': true,
+      'extraQuantity': (_random.nextDouble() * 100).round(),
+      'extraPrice': avgPrice + 0.15,
+      'especialQuantity': (_random.nextDouble() * 200).round(),
+      'especialPrice': avgPrice + 0.10,
+      'primeraQuantity': (_random.nextDouble() * 300).round(),
+      'primeraPrice': avgPrice + 0.05,
+      'segundaQuantity': (_random.nextDouble() * 150).round(),
+      'segundaPrice': avgPrice,
+      'terceraQuantity': (_random.nextDouble() * 80).round(),
+      'terceraPrice': avgPrice - 0.05,
     });
   }
 
@@ -279,7 +318,7 @@ class FarmSimulationService {
 
       await _firestore.collection('inventario_alimento').add({
         'userId': _userId,
-        'feedType': 'Concentrado',
+        'feedType': 'Postura',
         'stockKg': double.parse(_currentFeedStock.toStringAsFixed(2)),
         'movementType': 'purchase',
         'quantity': FEED_PURCHASE_AMOUNT,
@@ -292,7 +331,7 @@ class FarmSimulationService {
       _currentFeedStock += FEED_PURCHASE_AMOUNT;
       await _firestore.collection('inventario_alimento').add({
         'userId': _userId,
-        'feedType': 'Concentrado',
+        'feedType': 'Postura',
         'stockKg': double.parse(_currentFeedStock.toStringAsFixed(2)),
         'movementType': 'purchase',
         'quantity': FEED_PURCHASE_AMOUNT,
@@ -332,9 +371,9 @@ class FarmSimulationService {
   Future<void> _setInitialInventory() async {
     await _firestore.collection('inventario_alimento').add({
       'userId': _userId,
-      'feedType': 'Concentrado',
+      'feedType': 'Postura',
       'stockKg': double.parse(_currentFeedStock.toStringAsFixed(2)),
-      'minimumStock': 500,
+      'minimumStock': 1000,
       'updatedAt': DateTime.now().toIso8601String(),
     });
   }
@@ -342,14 +381,13 @@ class FarmSimulationService {
   Future<void> createInitialLot() async {
     await _firestore.collection('lotes').doc('lot_1').set({
       'userId': _userId,
-      'lotNumber': 'Lote 1',
-      'initialCount': INITIAL_HENS,
-      'currentCount': _currentHens,
+      'lotNumber': 'LOTE-001',
       'breed': 'Lohmann',
-      'startDate': DateTime.now()
-          .subtract(const Duration(days: 120))
-          .toIso8601String(),
-      'isActive': true,
+      'supplier': 'Granja Avicola Central',
+      'startDate': DateTime.now().subtract(const Duration(days: 30)).toIso8601String(),
+      'initialHens': 5000,
+      'currentHens': 5000,
+      'notes': 'Lote generado por simulación',
       'createdAt': DateTime.now().toIso8601String(),
     });
   }
