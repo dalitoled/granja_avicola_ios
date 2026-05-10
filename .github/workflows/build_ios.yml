@@ -5,6 +5,9 @@ on:
     branches: [ main, master ]
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build-ios:
     runs-on: macos-14
@@ -18,11 +21,12 @@ jobs:
         with:
           flutter-version: '3.24.0'
           channel: 'stable'
-          cache: true
 
       - name: Install iOS dependencies
         run: |
-          cd ios && pod install && cd ..
+          cd ios
+          pod install --repo-update
+          cd ..
 
       - name: Get Flutter dependencies
         run: flutter pub get
@@ -39,7 +43,7 @@ jobs:
 
       - name: Build iOS for simulator
         run: |
-          flutter build ios --simulator --no-codesign
+          flutter build ios --simulator --no-codesign 2>&1
 
       - name: Package as IPA (unsigned)
         run: |
@@ -48,7 +52,8 @@ jobs:
           
           cd build/ios/iphonesimulator
           
-          zip -r ../ios-unsigned/$APP_NAME.ipa Payload/$APP_NAME.app
+          zip -r ../ios-unsigned/$APP_NAME.ipa Payload/$APP_NAME.app 2>/dev/null || \
+          zip -r ../ios-unsigned/$APP_NAME.ipa *.app
           
           ls -la ../ios-unsigned/
 
