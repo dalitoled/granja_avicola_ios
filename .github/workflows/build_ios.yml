@@ -27,9 +27,15 @@ jobs:
       - name: Get Flutter dependencies
         run: flutter pub get
 
+      - name: Clean iOS pods
+        run: |
+          cd ios
+          rm -rf Pods Podfile.lock .symlinks
+          cd ..
+
       - name: Install iOS dependencies
         run: |
-          cd ios && pod install && cd ..
+          cd ios && pod install --repo-update && cd ..
 
       - name: Build iOS for simulator
         run: |

@@ -1,8 +1,9 @@
-platform :ios, '13.0'
+platform :ios, '14.0'
 
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
 ENV['CFLAGS'] = '-Wno-unused-command-line-argument'
 ENV['CXXFLAGS'] = '-Wno-unused-command-line-argument'
+ENV['CLANG_ENABLE_MODULES'] = 'YES'
 
 project 'Runner', {
   'Debug' => :debug,
@@ -34,57 +35,33 @@ target 'Runner' do
 end
 
 post_install do |installer|
-  Dir.glob(File.join(installer.sandbox.root, '**/*.xcconfig')).each do |xcconfig_path|
-    content = File.read(xcconfig_path)
-    if content.include?('-G')
-      puts "Patching: #{xcconfig_path}"
-      content = content.gsub(/-G\s*\S*/, '')
-      File.write(xcconfig_path, content)
-    end
-  end
-
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
     
     target.build_configurations.each do |config|
-      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '14.0'
       config.build_settings['ENABLE_BITCODE'] = 'NO'
-      config.build_settings['GCC_WARN_INHIBIT_UNIVERSAL_WARNING'] = 'YES'
       config.build_settings['SWIFT_STRICT_CONCURRENCY'] = 'minimal'
       config.build_settings['SWIFT_VERSION'] = '5.0'
+      config.build_settings['CLANG_ENABLE_MODULES'] = 'YES'
+      config.build_settings['OTHER_LDFLAGS'] = '$(inherited) -ObjC'
       
-      %w[OTHER_CFLAGS OTHER_CPLUSPLUSFLAGS OTHER_LDFLAGS OTHER_SWIFT_FLAGS 
-         GCC_PREPROCESSOR_DEFINITIONS CLANG_CXX_FLAGS].each do |key|
-        if config.build_settings[key]
-          config.build_settings[key] = config.build_settings[key].to_s.gsub(/-G\s*\S*/, '').gsub(/-G/, '').strip
-        end
-      end
-      
-      config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'i386'
-      
-      config.build_settings['HEADER_SEARCH_PATHS'] ||= ['$(inherited)']
       config.build_settings['HEADER_SEARCH_PATHS'] = [
         '$(inherited)',
-        '"${PODS_ROOT}/Headers/Public"',
-        '"${PODS_ROOT}/abseil/src"',
-        '"${PODS_ROOT}/BoringSSL-GRPC/src/include"',
-        '"${PODS_ROOT}/gRPC-Core/src/core/lib/security/credentials"'
+        '$(PODS_ROOT)/Headers/Public',
+        '$(PODS_ROOT)/abseil',
+        '$(PODS_ROOT)/BoringSSL-GRPC',
+        '$(PODS_ROOT)/gRPC-Core/src/core/lib/security/credentials',
+        '$(PODS_ROOT)/gRPC-Core/src/core',
+        '$(PODS_ROOT)/grpc++_unsecure/src/core',
+        '$(PODS_ROOT)/grpcpp_unsecure/src/core',
       ]
-      
-      ldflags = config.build_settings['OTHER_LDFLAGS'] || ['$(inherited)']
-      ldflags = [ldflags].flatten.uniq
-      ldflags << '-ObjC' unless ldflags.include?('-ObjC')
-      ldflags << '-lc++' unless ldflags.include?('-lc++')
-      config.build_settings['OTHER_LDFLAGS'] = ldflags
     end
   end
   
   installer.pods_project.build_configurations.each do |config|
-    config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
-    config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'gnu++17'
-    config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'i386'
-    config.build_settings['GCC_WARN_INHIBIT_UNIVERSAL_WARNING'] = 'YES'
+    config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '14.0'
     config.build_settings['SWIFT_STRICT_CONCURRENCY'] = 'minimal'
-    config.build_settings['SWIFT_VERSION'] = '5.0'
+    config.build_settings['CLANG_ENABLE_MODULES'] = 'YES'
   end
 end
