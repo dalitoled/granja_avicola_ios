@@ -11,6 +11,7 @@ env:
 jobs:
   build-ios:
     runs-on: macos-14
+    timeout-minutes: 30
     
     steps:
       - name: Checkout code
@@ -21,40 +22,24 @@ jobs:
         with:
           flutter-version: '3.24.0'
           channel: 'stable'
+          cache: true
 
       - name: Install iOS dependencies
         run: |
-          cd ios
-          pod install --repo-update
-          cd ..
+          cd ios && pod install && cd ..
 
       - name: Get Flutter dependencies
         run: flutter pub get
 
-      - name: Update iOS signing config
-        env:
-          BUNDLE_ID: ${{ secrets.BUNDLE_ID }}
-        run: |
-          mkdir -p ios/Runner/Assets.xcassets/AppIcon.appiconset
-          if [ -n "$BUNDLE_ID" ]; then
-            sed -i '' "s/bundle-identifier-here/$BUNDLE_ID/g" ios/Runner/Info.plist
-            sed -i '' "s/com.example.appGranjaAvicola/$BUNDLE_ID/g" ios/Runner.xcodeproj/project.pbxproj
-          fi
-
       - name: Build iOS for simulator
         run: |
-          flutter build ios --simulator --no-codesign 2>&1
+          flutter build ios --simulator --no-codesign
 
-      - name: Package as IPA (unsigned)
+      - name: Package as IPA
         run: |
           mkdir -p build/ios-unsigned
-          APP_NAME="Runner"
-          
           cd build/ios/iphonesimulator
-          
-          zip -r ../ios-unsigned/$APP_NAME.ipa Payload/$APP_NAME.app 2>/dev/null || \
-          zip -r ../ios-unsigned/$APP_NAME.ipa *.app
-          
+          zip -r ../ios-unsigned/Runner.ipa *.app
           ls -la ../ios-unsigned/
 
       - name: Upload unsigned IPA
@@ -62,11 +47,4 @@ jobs:
         with:
           name: ios-unsigned-ipa
           path: build/ios-unsigned/*.ipa
-          retention-days: 7
-
-      - name: Upload simulator app
-        uses: actions/upload-artifact@v4
-        with:
-          name: ios-simulator-app
-          path: build/ios/iphonesimulator/*.app
           retention-days: 7
