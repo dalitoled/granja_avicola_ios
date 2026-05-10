@@ -29,7 +29,6 @@ jobs:
 
       - name: Update iOS signing config
         env:
-          TEAM_ID: ${{ secrets.TEAM_ID }}
           BUNDLE_ID: ${{ secrets.BUNDLE_ID }}
         run: |
           mkdir -p ios/Runner/Assets.xcassets/AppIcon.appiconset
@@ -38,70 +37,31 @@ jobs:
             sed -i '' "s/com.example.appGranjaAvicola/$BUNDLE_ID/g" ios/Runner.xcodeproj/project.pbxproj
           fi
 
-      - name: Build iOS Simulator (no codesign)
+      - name: Build iOS for simulator
         run: |
           flutter build ios --simulator --no-codesign
 
-      - name: Create ZIP of simulator build
+      - name: Package as IPA (unsigned)
         run: |
-          mkdir -p build/simulator
-          cp -r build/ios/iphonesimulator/*.app build/simulator/
-          cd build/simulator
-          zip -r ../ios-simulator-app.zip *.app
+          mkdir -p build/ios-unsigned
+          APP_NAME="Runner"
+          
+          cd build/ios/iphonesimulator
+          
+          zip -r ../ios-unsigned/$APP_NAME.ipa Payload/$APP_NAME.app
+          
+          ls -la ../ios-unsigned/
 
-      - name: Upload Simulator Build
+      - name: Upload unsigned IPA
         uses: actions/upload-artifact@v4
         with:
-          name: ios-simulator-build
-          path: build/ios-simulator-app.zip
+          name: ios-unsigned-ipa
+          path: build/ios-unsigned/*.ipa
           retention-days: 7
 
-      - name: Build iOS Release (unsigned)
-        if: secrets.CERTIFICATE != ''
-        env:
-          CERTIFICATE: ${{ secrets.CERTIFICATE }}
-          CERTIFICATE_PWD: ${{ secrets.CERTIFICATE_PASSWORD }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-          TEAM_ID: ${{ secrets.TEAM_ID }}
-          BUNDLE_ID: ${{ secrets.BUNDLE_ID }}
-        run: |
-          echo "$CERTIFICATE" | base64 --decode -o certificate.p12
-          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -k "$KEYCHAIN_PASSWORD" build.keychain
-          security import certificate.p12 -P "$CERTIFICATE_PWD" -A -t cert -f pkcs12 -k build.keychain
-          
-          xcodebuild -workspace ios/Runner.xcworkspace \
-            -scheme Runner \
-            -configuration Release \
-            -archivePath build/Runner.xcarchive \
-            archive \
-            CODE_SIGN_STYLE=Automatic \
-            CODE_SIGN_TEAM_ID=${{ secrets.TEAM_ID }} \
-            PRODUCT_BUNDLE_IDENTIFIER=${{ secrets.BUNDLE_ID }}
-
-          cat > /tmp/ExportOptions.plist << 'EOF'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key>
-            <string>app-store</string>
-            <key>teamID</key>
-            <string>${{ secrets.TEAM_ID }}</string>
-          </dict>
-          </plist>
-          EOF
-          
-          xcodebuild -exportArchive \
-            -archivePath build/Runner.xcarchive \
-            -exportPath build/ios-ipa \
-            -exportOptionsPlist /tmp/ExportOptions.plist
-
-      - name: Upload IPA (if signed)
-        if: secrets.CERTIFICATE != ''
+      - name: Upload simulator app
         uses: actions/upload-artifact@v4
         with:
-          name: ios-ipa
-          path: build/ios-ipa/*.ipa
+          name: ios-simulator-app
+          path: build/ios/iphonesimulator/*.app
           retention-days: 7
