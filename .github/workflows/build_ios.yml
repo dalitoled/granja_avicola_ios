@@ -43,10 +43,20 @@ jobs:
 
       - name: Package as IPA
         run: |
+          APP_DIR="build/ios/iphonesimulator"
           mkdir -p build/ios-unsigned
-          cd build/ios/iphonesimulator
-          zip -r ../ios-unsigned/Runner.ipa *.app
-          ls -la ../ios-unsigned/
+          if [ -d "$APP_DIR" ]; then
+            cd "$APP_DIR"
+            ls -la
+            zip -r ../../../build/ios-unsigned/Runner.ipa *.app
+          else
+            echo "Directory not found: $APP_DIR"
+            find build -name "*.app" -type d 2>/dev/null | head -5
+          fi
+
+      - name: List built files
+        run: |
+          ls -la build/ios-unsigned/ 2>/dev/null || echo "No files found"
 
       - name: Upload unsigned IPA
         uses: actions/upload-artifact@v4
