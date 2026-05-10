@@ -594,8 +594,8 @@ class _CreateUserDialogState extends State<_CreateUserDialog> {
                 },
               ),
               const SizedBox(height: 16),
-              DropdownButtonFormField<AppRole>(
-              initialValue: _selectedRole,
+DropdownButtonFormField<AppRole>(
+              value: _selectedRole,
               decoration: const InputDecoration(
                 labelText: 'Rol',
                 prefixIcon: Icon(Icons.badge),
@@ -727,7 +727,7 @@ class _EditUserDialogState extends State<_EditUserDialog> {
             const Divider(),
             const SizedBox(height: 8),
             DropdownButtonFormField<AppRole>(
-              initialValue: _selectedRole,
+              value: _selectedRole,
               decoration: const InputDecoration(
                 labelText: 'Rol',
                 prefixIcon: Icon(Icons.badge),

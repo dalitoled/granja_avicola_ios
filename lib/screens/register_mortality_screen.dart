@@ -286,7 +286,7 @@ class _RegisterMortalityScreenState extends State<RegisterMortalityScreen> {
               )
             else
               DropdownButtonFormField<HenLotModel>(
-                initialValue: _selectedLot,
+                value: _selectedLot,
                 isExpanded: true,
                 decoration: InputDecoration(
                   border: OutlineInputBorder(
@@ -410,7 +410,7 @@ class _RegisterMortalityScreenState extends State<RegisterMortalityScreen> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              initialValue: _selectedCause,
+              value: _selectedCause,
               decoration: InputDecoration(
                 labelText: 'Causa de muerte',
                 prefixIcon: const Icon(Icons.help_outline),
