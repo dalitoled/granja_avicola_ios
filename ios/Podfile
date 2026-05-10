@@ -43,6 +43,18 @@ post_install do |installer|
     end
   end
 
+  # Fix FirebaseSharedSwift Swift 6 compatibility issue
+  firebase_encoder_path = File.join(installer.sandbox.root, 'FirebaseSharedSwift', 'FirebaseSharedSwift', 'Sources', 'third_party', 'FirebaseDataEncoder', 'FirebaseDataEncoder.swift')
+  if File.exist?(firebase_encoder_path)
+    content = File.read(firebase_encoder_path)
+    if content.include?('sending')
+      puts "Patching FirebaseDataEncoder.swift for Swift 6 compatibility..."
+      content = content.gsub(/\bSending\b/, '_Sending')
+      content = content.gsub(/\bsending\b/, '_sending')
+      File.write(firebase_encoder_path, content)
+    end
+  end
+
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
     
